@@ -35,7 +35,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
     openapi: "3.1.0",
     info: {
       title: "Agent Product Normalizer + Video Intelligence API",
-      version: "0.8.0",
+      version: "0.8.1",
       description: "Paid x402 microservices for autonomous agents: video context extraction, workflow compression, safety helpers and commerce normalization. USDC on Base. Every service supports GET plus agent-friendly POST.",
     },
     servers: [{ url: baseUrl }],

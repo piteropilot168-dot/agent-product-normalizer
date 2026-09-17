@@ -66,7 +66,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.8.0",
+    version: "0.8.1",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
@@ -126,7 +126,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   app.get("/", (_req, res) => res.json(catalog));
   app.get("/catalog", (_req, res) => res.json(catalog));
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.1" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
   app.get("/llms.txt", (req, res) => {
@@ -175,7 +175,7 @@ Commerce utilities:
 Discovery:
 - ${baseUrl}/catalog
 - ${baseUrl}/openapi.json
-- ${baseUrl}/.well-known/x402.json
+- ${baseUrl}/.well-known/x402
 - ${baseUrl}/.well-known/agent-card.json
 - ${baseUrl}/.well-known/ai-plugin.json
 - ${baseUrl}/skill.md
@@ -194,7 +194,7 @@ Notes for agent callers:
 `);
   });
 
-  app.get("/.well-known/x402.json", (req, res) => {
+  const x402Manifest = (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     res.json({
       x402Version: 2,
@@ -213,14 +213,18 @@ Notes for agent callers:
         price: service.price,
       })),
     });
-  });
+  };
+
+  // Canonical Agent402 crawler path plus backward-compatible .json alias.
+  app.get("/.well-known/x402", x402Manifest);
+  app.get("/.well-known/x402", x402Manifest);
 
   app.get("/.well-known/agent-card.json", (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     res.json({
       name: "Agent Product Normalizer",
       description: "x402-paid agent utilities for video context extraction, workflow compression, safety checks and structured commerce data.",
-      version: "0.8.0",
+      version: "0.8.1",
       url: baseUrl,
       capabilities: [
         "task-clarification",
@@ -263,7 +267,7 @@ Notes for agent callers:
       discovery: {
         catalog: `${baseUrl}/catalog`,
         openapi: `${baseUrl}/openapi.json`,
-        x402: `${baseUrl}/.well-known/x402.json`,
+        x402: `${baseUrl}/.well-known/x402`,
         llms: `${baseUrl}/llms.txt`,
       },
       active: true,

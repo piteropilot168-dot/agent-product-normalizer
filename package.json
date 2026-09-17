@@ -1,6 +1,6 @@
 {
   "name": "agent-product-normalizer",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "type": "module",
   "description": "x402-paid agent utilities for video context, workflow compression, safety helpers and commerce normalization",
