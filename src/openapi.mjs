@@ -35,7 +35,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
     openapi: "3.1.0",
     info: {
       title: "Agent Product Normalizer + Friction API",
-      version: "0.5.1",
+      version: "0.6.0",
       description: "Paid x402 micro-utilities for AI agents plus commerce-data utilities. USDC on Base. Every service supports GET plus agent-friendly POST.",
     },
     servers: [{ url: baseUrl }],
@@ -62,6 +62,28 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
       "/api/v1/should-ask-human": {
         get: { operationId: "shouldAskHumanByTask", summary: "Decide whether to ask the human or safely infer and continue", parameters: [{ name: "task", in: "query", required: true, schema: { type: "string", maxLength: 10000 } }, { name: "known_context", in: "query", required: false, schema: { type: "string", maxLength: 15000 } }, { name: "proposed_assumption", in: "query", required: false, schema: { type: "string", maxLength: 4000 } }], responses },
         post: { operationId: "shouldAskHuman", summary: "Decide whether to ask the human or safely infer and continue", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["task"], properties: { task: { type: "string", maxLength: 10000 }, known_context: { type: "string", maxLength: 15000 }, proposed_assumption: { type: "string", maxLength: 4000 } }, additionalProperties: false } } } }, responses },
+      },
+      "/api/v1/dedupe-facts": { get: textGet("dedupeFactsByText", "Deduplicate facts and near-duplicate notes", "text"), post: textPost("dedupeFacts", "Deduplicate facts and near-duplicate notes", "text") },
+      "/api/v1/detect-conflicts": { get: textGet("detectConflictsByText", "Detect contradictory facts and numeric mismatches", "text"), post: textPost("detectConflicts", "Detect contradictory facts and numeric mismatches", "text") },
+      "/api/v1/extract-actions": { get: textGet("extractActionsByText", "Extract concrete action items from text", "text"), post: textPost("extractActions", "Extract concrete action items from text", "text") },
+      "/api/v1/make-search-query": { get: textGet("makeSearchQueryByTask", "Turn a verbose task into compact search queries", "task", 8000), post: textPost("makeSearchQuery", "Turn a verbose task into compact search queries", "task", 8000) },
+      "/api/v1/missing-fields": {
+        get: { operationId: "missingFieldsFromJson", summary: "Check required fields in a JSON object", parameters: [{ name: "input", in: "query", required: true, schema: { type: "string", maxLength: 12000 } }, { name: "required_fields", in: "query", required: true, schema: { type: "string", maxLength: 2000 } }], responses },
+        post: { operationId: "missingFields", summary: "Check required fields in a JSON object", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["input","required_fields"], properties: { input: { type: "object", additionalProperties: true }, required_fields: { type: "array", minItems: 1, maxItems: 50, items: { type: "string" } } }, additionalProperties: false } } } }, responses },
+      },
+      "/api/v1/retry-decision": {
+        get: { operationId: "retryDecisionByStatus", summary: "Decide whether/how to retry an API or tool failure", parameters: [{ name: "status", in: "query", required: true, schema: { type: "integer" } }, { name: "error", in: "query", required: false, schema: { type: "string", maxLength: 4000 } }, { name: "attempt", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 20 } }], responses },
+        post: { operationId: "retryDecision", summary: "Decide whether/how to retry an API or tool failure", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["status"], properties: { status: { type: "integer" }, error: { type: "string", maxLength: 4000 }, attempt: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false } } } }, responses },
+      },
+      "/api/v1/prompt-injection-scan": { get: textGet("promptInjectionScanByText", "Scan untrusted text for common prompt-injection patterns", "text"), post: textPost("promptInjectionScan", "Scan untrusted text for common prompt-injection patterns", "text") },
+      "/api/v1/redact-secrets": { get: textGet("redactSecretsByText", "Redact common credentials and token patterns", "text"), post: textPost("redactSecrets", "Redact common credentials and token patterns", "text") },
+      "/api/v1/handoff-diff": {
+        get: { operationId: "handoffDiffByText", summary: "Report what changed between two agent states", parameters: [{ name: "before", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }, { name: "after", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }], responses },
+        post: { operationId: "handoffDiff", summary: "Report what changed between two agent states", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["before","after"], properties: { before: { type: "string", maxLength: 20000 }, after: { type: "string", maxLength: 20000 } }, additionalProperties: false } } } }, responses },
+      },
+      "/api/v1/choose-next-step": {
+        get: { operationId: "chooseNextStepByText", summary: "Rank candidate next actions against current state", parameters: [{ name: "state", in: "query", required: true, schema: { type: "string", maxLength: 12000 } }, { name: "actions", in: "query", required: true, schema: { type: "string", maxLength: 12000 } }], responses },
+        post: { operationId: "chooseNextStep", summary: "Rank candidate next actions against current state", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["state","actions"], properties: { state: { type: "string", maxLength: 12000 }, actions: { type: "array", minItems: 1, maxItems: 30, items: { type: "string", maxLength: 1000 } } }, additionalProperties: false } } } }, responses },
       },
       "/api/v1/rank-results": {
         get: { operationId: "rankSearchResultsFromJson", summary: "Rank search results; GET accepts results as a JSON-array string", parameters: [{ name: "query", in: "query", required: true, schema: { type: "string", maxLength: 4000 } }, { name: "results", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }], responses },
