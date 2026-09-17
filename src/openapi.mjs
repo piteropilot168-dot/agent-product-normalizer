@@ -34,8 +34,8 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
   return {
     openapi: "3.1.0",
     info: {
-      title: "Agent Product Normalizer + Friction API",
-      version: "0.6.0",
+      title: "Agent Product Normalizer + Video Intelligence API",
+      version: "0.7.0",
       description: "Paid x402 micro-utilities for AI agents plus commerce-data utilities. USDC on Base. Every service supports GET plus agent-friendly POST.",
     },
     servers: [{ url: baseUrl }],
@@ -85,6 +85,13 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         get: { operationId: "chooseNextStepByText", summary: "Rank candidate next actions against current state", parameters: [{ name: "state", in: "query", required: true, schema: { type: "string", maxLength: 12000 } }, { name: "actions", in: "query", required: true, schema: { type: "string", maxLength: 12000 } }], responses },
         post: { operationId: "chooseNextStep", summary: "Rank candidate next actions against current state", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["state","actions"], properties: { state: { type: "string", maxLength: 12000 }, actions: { type: "array", minItems: 1, maxItems: 30, items: { type: "string", maxLength: 1000 } } }, additionalProperties: false } } } }, responses },
       },
+      "/api/v1/video-transcript": { get: singleGet("fetchVideoTranscriptByUrl", "Fetch timestamped YouTube transcript"), post: singlePost("fetchVideoTranscript", "Fetch timestamped YouTube transcript") },
+      "/api/v1/video-brief": { get: textGet("videoBriefByTranscript", "Create compact brief from transcript", "transcript", 120000), post: textPost("videoBrief", "Create compact brief from transcript", "transcript", 120000) },
+      "/api/v1/video-key-points": { get: textGet("videoKeyPointsByTranscript", "Extract key points from transcript", "transcript", 120000), post: textPost("videoKeyPoints", "Extract key points from transcript", "transcript", 120000, { properties: { limit: { type: "integer", minimum: 3, maximum: 20 } } }) },
+      "/api/v1/video-answer-question": { get: { operationId:"videoAnswerQuestionGet",summary:"Answer question using transcript evidence",parameters:[{name:"transcript",in:"query",required:true,schema:{type:"string",maxLength:120000}},{name:"question",in:"query",required:true,schema:{type:"string",maxLength:4000}}],responses }, post: textPost("videoAnswerQuestion","Answer question using transcript evidence","transcript",120000,{required:["transcript","question"],properties:{question:{type:"string",maxLength:4000}}}) },
+      "/api/v1/video-chapters": { get: textGet("videoChaptersGet", "Create topic chapters from transcript", "transcript", 120000), post: textPost("videoChapters", "Create topic chapters from transcript", "transcript", 120000, { properties: { target: { type: "integer", minimum: 3, maximum: 20 } } }) },
+      "/api/v1/video-claims": { get: textGet("videoClaimsGet", "Extract claims to verify from transcript", "transcript", 120000), post: textPost("videoClaims", "Extract claims to verify from transcript", "transcript", 120000) },
+      "/api/v1/video-action-items": { get: textGet("videoActionItemsGet", "Extract action items from transcript", "transcript", 120000), post: textPost("videoActionItems", "Extract action items from transcript", "transcript", 120000) },
       "/api/v1/rank-results": {
         get: { operationId: "rankSearchResultsFromJson", summary: "Rank search results; GET accepts results as a JSON-array string", parameters: [{ name: "query", in: "query", required: true, schema: { type: "string", maxLength: 4000 } }, { name: "results", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }], responses },
         post: { operationId: "rankSearchResults", summary: "Rank search results and flag duplicates, stale results and spam signals", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["query", "results"], properties: { query: { type: "string", maxLength: 4000 }, results: { type: "array", minItems: 1, maxItems: 25, items: resultItem } }, additionalProperties: false } } } }, responses },

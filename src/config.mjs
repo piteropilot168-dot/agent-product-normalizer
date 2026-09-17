@@ -22,12 +22,20 @@ export const config = {
     promptInjectionScan: process.env.X402_PRICE_PROMPT_INJECTION_SCAN || "$0.002",
     redactSecrets: process.env.X402_PRICE_REDACT_SECRETS || "$0.002",
     handoffDiff: process.env.X402_PRICE_HANDOFF_DIFF || "$0.002",
-    chooseNextStep: process.env.X402_PRICE_CHOOSE_NEXT_STEP || "$0.002"
+    chooseNextStep: process.env.X402_PRICE_CHOOSE_NEXT_STEP || "$0.002",
+    videoTranscript: process.env.X402_PRICE_VIDEO_TRANSCRIPT || "$0.015",
+    videoBrief: process.env.X402_PRICE_VIDEO_BRIEF || "$0.006",
+    videoKeyPoints: process.env.X402_PRICE_VIDEO_KEY_POINTS || "$0.004",
+    videoAnswerQuestion: process.env.X402_PRICE_VIDEO_ANSWER || "$0.006",
+    videoChapters: process.env.X402_PRICE_VIDEO_CHAPTERS || "$0.004",
+    videoClaims: process.env.X402_PRICE_VIDEO_CLAIMS || "$0.004",
+    videoActionItems: process.env.X402_PRICE_VIDEO_ACTIONS || "$0.003"
   },
   facilitatorUrl: process.env.X402_FACILITATOR_URL || "https://facilitator.payai.network",
   fetchTimeoutMs: Number(process.env.FETCH_TIMEOUT_MS || 8000),
   maxResponseBytes: Number(process.env.MAX_RESPONSE_BYTES || 2_000_000),
-  maxCompareUrls: Number(process.env.MAX_COMPARE_URLS || 5)
+  maxCompareUrls: Number(process.env.MAX_COMPARE_URLS || 5),
+  transcriptProviderApiKey: process.env.SUPADATA_API_KEY || ""
 };
 
 if (!/^0x[a-fA-F0-9]{40}$/.test(config.payTo)) {

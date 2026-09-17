@@ -1,52 +1,27 @@
-# Agent Product Normalizer + Agent Friction API v0.6
+# Agent Product Normalizer + Video Intelligence API v0.7
 
-Machine-first x402 micro-utilities for autonomous agents. Live: `https://agent-product-normalizer.vercel.app`
+Machine-first x402 utilities for autonomous agents.
 
-## Agent friction utilities
+## New in v0.7 — do not make the agent watch the video
 
-| Tool | Path | Price |
-|---|---|---:|
-| Task Clarifier | `/api/v1/clarify` | $0.005 |
-| Context Compressor | `/api/v1/compress-context` | $0.005 |
-| Should I Ask The Human? | `/api/v1/should-ask-human` | $0.003 |
-| Constraint Extractor | `/api/v1/extract-constraints` | $0.003 |
-| Search Result Judge | `/api/v1/rank-results` | $0.005 |
-| Fact Deduplicator | `/api/v1/dedupe-facts` | $0.0015 |
-| Conflict Detector | `/api/v1/detect-conflicts` | $0.002 |
-| Action Extractor | `/api/v1/extract-actions` | $0.002 |
-| Search Query Builder | `/api/v1/make-search-query` | $0.0015 |
-| Missing Field Checker | `/api/v1/missing-fields` | $0.001 |
-| Retry Decision | `/api/v1/retry-decision` | $0.001 |
-| Prompt Injection Scanner | `/api/v1/prompt-injection-scan` | $0.002 |
-| Secret Redactor | `/api/v1/redact-secrets` | $0.002 |
-| Handoff Diff | `/api/v1/handoff-diff` | $0.002 |
-| Next Step Selector | `/api/v1/choose-next-step` | $0.002 |
+- `video-transcript` — fetch a YouTube transcript through a configured transcript provider — $0.015
+- `video-brief` — compact extractive brief from a long transcript — $0.006
+- `video-key-points` — important passages only — $0.004
+- `video-answer-question` — question → answer + evidence passages — $0.006
+- `video-chapters` — topic-sized transcript chunks — $0.004
+- `video-claims` — claims queued for verification — $0.004
+- `video-action-items` — concrete actions from a video — $0.003
 
-## Commerce utilities
+The transcript fetch route is advertised only after `SUPADATA_API_KEY` is configured. All transcript-analysis routes work without an upstream provider if the caller already has transcript text.
 
-| Tool | Path | Price |
-|---|---|---:|
-| Product Normalizer | `/api/v1/normalize` | $0.01 |
-| Offer Extractor | `/api/v1/extract-offer` | $0.01 |
-| Product Validator | `/api/v1/validate` | $0.02 |
-| Offer Comparator | `/api/v1/compare` | $0.05 |
+## Provider setup
 
-All paid routes support GET and POST, use x402, settle USDC on Base, and pay directly to the configured wallet.
+Set `SUPADATA_API_KEY` in Vercel environment variables. The service calls Supadata's transcript endpoint server-side; callers never see that key.
 
-## Discovery
+## Existing agent utility layer
 
-`/catalog` · `/openapi.json` · `/llms.txt` · `/.well-known/x402.json` · `/.well-known/agent-card.json` · `/.well-known/ai-plugin.json` · `/skill.md`
+The v0.6 friction, safety, workflow and commerce endpoints remain available.
 
-## Why v0.6
+## Health
 
-The new tools target repeated agent overhead rather than expensive model inference: duplicate context, conflicting facts, action extraction, verbose search requests, missing tool inputs, retry handling, prompt-injection triage, secret redaction and handoff deltas. They are intentionally small and cheap so a router can use them as infrastructure primitives.
-
-## Local
-
-```bash
-npm install
-npm start
-npm run check
-```
-
-Health: `GET /health` → `{"ok":true,"version":"0.6.0"}`
+`GET /health` → version `0.7.0` and transcript-provider status.
