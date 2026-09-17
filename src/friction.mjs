@@ -34,31 +34,68 @@ function inferGoal(raw) {
   return first.replace(/^(please|pls|proszę|hej|hi|hello)[,:\s-]*/i, "").slice(0, 300);
 }
 
-function classifySentence(s) {
-  if (MUST_WORDS.test(s)) return "hard";
+function clauses(value) {
+  return sentences(value).flatMap((sentence) =>
+    sentence
+      .split(/\s*(?:,|;|\bbut\b|\bhowever\b|\bale\b|\blecz\b)\s*/i)
+      .map(s => s.trim())
+      .filter(Boolean)
+  );
+}
+
+function classifyClause(s) {
   if (SOFT_WORDS.test(s)) return "soft";
+  if (/\b(no refurbished|no used|do not|don't|without|exclude|avoid|bez|nie chcę|wyklucz|unikaj)\b/i.test(s)) return "exclude";
+  if (MUST_WORDS.test(s) || MONEY.test(s) || DEADLINE.test(s)) return "hard";
   return null;
 }
 
+function cleanMoney(v) {
+  return String(v).trim().replace(/[,.!?;:]+$/g, "").trim();
+}
+
 function extractNumbers(raw) {
-  const clean = (v) => String(v).replace(/[,.!?;:]+$/g, "").trim();
-  const money = unique((raw.match(MONEY) || []).map(clean));
-  const deadlines = unique((raw.match(DEADLINE) || []).map(clean));
+  MONEY.lastIndex = 0;
+  DEADLINE.lastIndex = 0;
+  const money = unique((raw.match(MONEY) || []).map(cleanMoney));
+  const deadlines = unique((raw.match(DEADLINE) || []).map(v => String(v).replace(/[,.!?;:]+$/g, "").trim()));
   return { money, deadlines };
+}
+
+function extractGoal(raw) {
+  let goal = inferGoal(raw);
+  goal = goal
+    .replace(/\b(?:under|below|less than|up to|max(?:imum)?|do|poniżej)\s*[$€£]?\s*\d[\d\s.,]*/ig, "")
+    .replace(/\b(?:preferably|ideally|if possible|najlepiej|jeśli się da)\b[^,.]*/ig, "")
+    .replace(/\b(?:no|without|bez)\s+[^,.]*/ig, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.!?])/g, "$1")
+    .replace(/[ ,;:-]+$/g, "")
+    .trim();
+  return goal || inferGoal(raw);
+}
+
+function normalizeConstraintClause(s) {
+  return s.replace(/^\s*(?:and|or|i|oraz)\s+/i, "").trim();
 }
 
 export function clarifyTask(rawInput) {
   const input = text(rawInput, "text");
-  const parts = sentences(input);
+  const parts = clauses(input);
   const hard = [];
   const soft = [];
   const facts = [];
-  for (const s of parts) {
-    const kind = classifySentence(s);
+  const exclusions = [];
+
+  for (const raw of parts) {
+    const s = normalizeConstraintClause(raw);
+    const kind = classifyClause(s);
     if (kind === "hard") hard.push(s);
     else if (kind === "soft") soft.push(s);
+    else if (kind === "exclude") exclusions.push(s);
     else facts.push(s);
   }
+
   const { money, deadlines } = extractNumbers(input);
   const ambiguitySignals = [];
   if (/\b(something|anything|somehow|whatever|coś|jakieś|jakoś|cokolwiek)\b/i.test(input)) ambiguitySignals.push("vague-object");
@@ -72,8 +109,13 @@ export function clarifyTask(rawInput) {
   else if (ambiguitySignals.includes("missing-deadline")) question = "What is the latest acceptable deadline?";
 
   return {
-    goal: inferGoal(input),
-    hard_constraints: unique([...hard, ...money.map(v => `budget_or_price: ${v}`), ...deadlines.map(v => `time: ${v}`)]),
+    goal: extractGoal(input),
+    hard_constraints: unique([
+      ...hard.filter(x => !SOFT_WORDS.test(x) && MUST_WORDS.test(x)),
+      ...money.map(v => `budget_or_price: ${v}`),
+      ...deadlines.map(v => `time: ${v}`),
+      ...exclusions.map(v => `exclude: ${v}`),
+    ]),
     soft_preferences: unique(soft),
     context_facts: unique(facts).slice(0, 12),
     ambiguity_signals: unique(ambiguitySignals),
@@ -85,19 +127,22 @@ export function clarifyTask(rawInput) {
 
 export function extractConstraints(rawInput) {
   const input = text(rawInput, "text");
-  const parts = sentences(input);
+  const parts = clauses(input);
   const hard = [];
   const soft = [];
   const exclusions = [];
-  for (const s of parts) {
-    if (/\b(no |not |without |exclude|avoid|bez |nie |wyklucz|unikaj)\b/i.test(s)) exclusions.push(s);
-    const kind = classifySentence(s);
-    if (kind === "hard") hard.push(s);
-    if (kind === "soft") soft.push(s);
+
+  for (const raw of parts) {
+    const s = normalizeConstraintClause(raw);
+    const kind = classifyClause(s);
+    if (kind === "exclude") exclusions.push(s);
+    else if (kind === "soft") soft.push(s);
+    else if (kind === "hard") hard.push(s);
   }
+
   const { money, deadlines } = extractNumbers(input);
   return {
-    hard_constraints: unique(hard),
+    hard_constraints: unique(hard.filter(x => !SOFT_WORDS.test(x))),
     soft_preferences: unique(soft),
     exclusions: unique(exclusions),
     budgets_or_prices: money,
@@ -169,7 +214,7 @@ export function compressContext(rawInput, maxItems = 12) {
     .map(x => x.s);
 
   const decisions = ranked.filter(s => /\b(decided|agreed|confirmed|ustalono|uzgodniono|potwierdzono)\b/i.test(s));
-  const nextActions = ranked.filter(s => /\b(next|todo|action|need to|will|should|następ|trzeba|należy|zrobić|wykonać)\b/i.test(s));
+  const nextActions = ranked.filter(s => /\b(next|todo|action|verify|check|review|send|submit|deploy|call|contact|prepare|update|fix|następ|sprawdź|zweryfikuj|wyślij|wdroż|skontaktuj|przygotuj|zaktualizuj|napraw)\b/i.test(s));
   const constraints = ranked.filter(s => MUST_WORDS.test(s));
   const blockers = ranked.filter(s => /\b(blocked|waiting|depends|cannot|can't|problem|issue|zablok|czeka|zależy|nie może|problem)\b/i.test(s));
 

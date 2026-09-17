@@ -82,5 +82,5 @@ GET /health
 Expected version after deployment:
 
 ```json
-{"ok":true,"version":"0.5.0"}
+{"ok":true,"version":"0.5.1"}
 ```
