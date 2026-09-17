@@ -1,4 +1,4 @@
-# Agent Product Normalizer + Video Intelligence API v0.8.1
+# Agent Product Normalizer + Video Intelligence API v0.8.2
 
 Machine-first x402 utilities for autonomous agents.
 
@@ -23,7 +23,7 @@ Set `SUPADATA_API_KEY` in Vercel environment variables. The service calls Supada
 
 The v0.6 friction, safety, workflow and commerce endpoints remain available.
 
-## v0.8.1
+## v0.8.2
 
 Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcript`, and adds the all-in-one `video-analyze` endpoint so agents pay once and fetch the transcript once.
 
@@ -32,7 +32,7 @@ Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcri
 `GET /health` → version `0.7.2`.
 
 
-## v0.8.1 quality pass
+## v0.8.2 quality pass
 
 - fixes generic cross-language questions such as `What is this video about?` by falling back to the extracted brief when lexical matching cannot work across languages
 - avoids creating one chapter per sentence for very short videos
@@ -40,7 +40,7 @@ Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcri
 - adds timestamp metadata to key points, chapters, claims, actions and answer evidence in `video-analyze`
 
 
-## v0.8.1 video precision pass
+## v0.8.2 video precision pass
 
 - stricter factual-claim extraction: filters scene-setting, meta commentary and opinion-only lines
 - normalizes constructions such as “the cool thing is that …” down to the factual clause
@@ -48,7 +48,7 @@ Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcri
 - `video-analyze` returns duration and compression metrics so agents can estimate how much context they avoided reading
 
 
-## v0.8.1 long-video quality pass
+## v0.8.2 long-video quality pass
 
 - caption-aware sentence reconstruction reduces broken subtitle fragments
 - more coherent extractive brief and key points with duplicate suppression
@@ -58,7 +58,7 @@ Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcri
 - chapter generation uses larger coherent windows and shorter titles
 
 
-## v0.8.1 transcript segmentation and relevance pass
+## v0.8.2 transcript segmentation and relevance pass
 
 - fixes long-video sentence collapse caused by lowercase subtitle starts
 - filters greetings and filler from summaries/key points
@@ -67,7 +67,7 @@ Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcri
 - adds `context_pack` with timestamped model-ready evidence for downstream agents
 
 
-## v0.8.1 thematic relevance pass
+## v0.8.2 thematic relevance pass
 
 - prioritizes central thesis sentences in briefs and chapter titles
 - penalizes jokes, stage chatter and anecdotal setup in summaries
@@ -76,7 +76,7 @@ Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcri
 - reduces tangential examples such as jokes and unrelated quotations
 
 
-## v0.8.1 multilingual caption fallback
+## v0.8.2 multilingual caption fallback
 
 - reconstructs analysis units from timestamped subtitle segments when a transcript has little or no punctuation
 - prevents giant one-sentence summaries on auto-captioned Russian and other low-punctuation transcripts
@@ -86,7 +86,7 @@ Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcri
 - cross-script Q&A falls back to compact context instead of echoing nearly the whole transcript
 
 
-## v0.8.1 discovery and positioning pass
+## v0.8.2 discovery and positioning pass
 
 - repositions the service around agent utilities rather than commerce only
 - promotes `video-analyze` as the primary Video Context API route
@@ -98,8 +98,22 @@ Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcri
 - removes the placeholder contact email instead of publishing a fake address
 
 
-## v0.8.1 Agent402 canonical manifest path
+## v0.8.2 Agent402 canonical manifest path
 
 - serves the x402 discovery manifest at `/.well-known/x402`
 - keeps `/.well-known/x402.json` as a backward-compatible alias
 - updates discovery links to the canonical Agent402 crawler path
+
+
+## v0.8.2 Agent402 discovery ranking pass
+
+No service logic or prices changed.
+
+- expands `video-analyze` metadata with literal buyer/search phrases:
+  `YouTube transcript`, `video-to-context`, `timestamped context`,
+  `technical tutorial`, `command extraction`, `summarize YouTube`
+- expands `video-transcript` metadata with:
+  `captions`, `subtitles`, `video-to-text`, `timestamped segments`
+- gives the primary video service the discovery name
+  `YouTube Video Context & Technical Command Extractor`
+- keeps `video-analyze` at $0.025 and `video-transcript` at $0.015

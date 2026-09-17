@@ -66,7 +66,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.8.1",
+    version: "0.8.2",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
@@ -126,7 +126,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   app.get("/", (_req, res) => res.json(catalog));
   app.get("/catalog", (_req, res) => res.json(catalog));
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.2" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
   app.get("/llms.txt", (req, res) => {
@@ -140,8 +140,8 @@ Payment: USDC on Base (eip155:8453)
 Pay-to: ${config.payTo}
 
 Recommended video routes:
-- GET/POST /api/v1/video-analyze — ${config.prices.videoAnalyze} — URL → transcript → compact brief, key points, chapters, claims, action items, timestamped context pack, technical commands and optional Q&A. Designed to reduce the context an agent needs to read.
-- GET/POST /api/v1/video-transcript — ${config.prices.videoTranscript} — fetch timestamped YouTube transcript segments.
+- GET/POST /api/v1/video-analyze — ${config.prices.videoAnalyze} — YouTube video → agent-ready context. Extract transcript highlights, timestamped key points, chapters, technical commands, action items, candidate claims, context pack and optional evidence Q&A without making an agent read the full transcript.
+- GET/POST /api/v1/video-transcript — ${config.prices.videoTranscript} — extract a YouTube transcript, captions and timestamped segments as video-to-text for downstream agents.
 - GET/POST /api/v1/video-brief — ${config.prices.videoBrief} — compact extractive brief from a supplied transcript.
 - GET/POST /api/v1/video-key-points — ${config.prices.videoKeyPoints} — select high-value transcript passages.
 - GET/POST /api/v1/video-answer-question — ${config.prices.videoAnswerQuestion} — extractive Q&A with evidence passages from a supplied transcript.
@@ -224,7 +224,7 @@ Notes for agent callers:
     res.json({
       name: "Agent Product Normalizer",
       description: "x402-paid agent utilities for video context extraction, workflow compression, safety checks and structured commerce data.",
-      version: "0.8.1",
+      version: "0.8.2",
       url: baseUrl,
       capabilities: [
         "task-clarification",
@@ -281,7 +281,7 @@ Notes for agent callers:
       name_for_human: "Agent Product Normalizer",
       name_for_model: "agent_product_normalizer",
       description_for_human: "Paid agent utilities for video context, workflow compression, safety checks and structured commerce data.",
-      description_for_model: "Use this x402 service when an agent needs compact video context from a YouTube URL, timestamped transcript segments, key passages, chapters, candidate claims, action items, technical commands, or extractive evidence Q&A. It also provides task clarification, context compression, safety/workflow helpers and commerce normalization. Payments are USDC on Base.",
+      description_for_model: "Use this x402 service when an agent needs YouTube transcript extraction, video-to-text, compact timestamped video context, transcript highlights, key passages, chapters, technical tutorial command extraction, candidate claims, action items, or extractive evidence Q&A. It also provides task clarification, context compression, safety/workflow helpers and commerce normalization. Payments are USDC on Base.",
       auth: { type: "none" },
       api: {
         type: "openapi",
@@ -634,8 +634,8 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       "GET /api/v1/choose-next-step": { accepts: accepts(config.prices.chooseNextStep), description: "Rank candidate next actions against the current agent state", mimeType: "application/json", serviceName: "Agent Next Step Selector", tags: ["agents","planning","next-step","workflow"], extensions: chooseNextStepBrowserDiscovery },
       "POST /api/v1/choose-next-step": { accepts: accepts(config.prices.chooseNextStep), description: "Rank candidate next actions against the current agent state", mimeType: "application/json", serviceName: "Agent Next Step Selector", tags: ["agents","planning","next-step","workflow"], extensions: chooseNextStepDiscovery },
       ...(config.transcriptProviderApiKey ? {
-        "GET /api/v1/video-transcript": { accepts: accepts(config.prices.videoTranscript), description: "Fetch a timestamped YouTube transcript so agents do not need to watch the video", mimeType: "application/json", serviceName: "Agent YouTube Transcript", tags: ["agents","youtube","video","transcript","research"], extensions: videoTranscriptBrowserDiscovery },
-        "POST /api/v1/video-transcript": { accepts: accepts(config.prices.videoTranscript), description: "Fetch a timestamped YouTube transcript so agents do not need to watch the video", mimeType: "application/json", serviceName: "Agent YouTube Transcript", tags: ["agents","youtube","video","transcript","research"], extensions: videoTranscriptDiscovery },
+        "GET /api/v1/video-transcript": { accepts: accepts(config.prices.videoTranscript), description: "Extract YouTube transcript, captions and timestamped segments as clean video-to-text for AI agents", mimeType: "application/json", serviceName: "YouTube Transcript & Timestamped Captions", tags: ["agents","youtube","video","transcript","captions","subtitles","video-to-text","timestamped-segments","research"], extensions: videoTranscriptBrowserDiscovery },
+        "POST /api/v1/video-transcript": { accepts: accepts(config.prices.videoTranscript), description: "Extract YouTube transcript, captions and timestamped segments as clean video-to-text for AI agents", mimeType: "application/json", serviceName: "YouTube Transcript & Timestamped Captions", tags: ["agents","youtube","video","transcript","captions","subtitles","video-to-text","timestamped-segments","research"], extensions: videoTranscriptDiscovery },
       } : {}),
       "GET /api/v1/video-brief": { accepts: accepts(config.prices.videoBrief), description: "Turn a long video transcript into a compact agent brief", mimeType: "application/json", serviceName: "Agent Video Brief", tags: ["agents","video","summary","tokens"], extensions: videoBriefBrowserDiscovery },
       "POST /api/v1/video-brief": { accepts: accepts(config.prices.videoBrief), description: "Turn a long video transcript into a compact agent brief", mimeType: "application/json", serviceName: "Agent Video Brief", tags: ["agents","video","summary","tokens"], extensions: videoBriefDiscovery },
@@ -650,8 +650,8 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       "GET /api/v1/video-action-items": { accepts: accepts(config.prices.videoActionItems), description: "Extract concrete action items from video transcript", mimeType: "application/json", serviceName: "Agent Video Action Items", tags: ["agents","video","actions","workflow"], extensions: videoActionItemsBrowserDiscovery },
       "POST /api/v1/video-action-items": { accepts: accepts(config.prices.videoActionItems), description: "Extract concrete action items from video transcript", mimeType: "application/json", serviceName: "Agent Video Action Items", tags: ["agents","video","actions","workflow"], extensions: videoActionItemsDiscovery },
       ...(config.transcriptProviderApiKey ? {
-        "GET /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Convert a YouTube URL into compact timestamped agent context: brief, key points, chapters, claims, actions, technical commands, context pack and optional evidence Q&A", mimeType: "application/json", serviceName: "Agent Video Analyze", tags: ["agents","youtube","video","summary","research","q&a"], extensions: videoAnalyzeBrowserDiscovery },
-        "POST /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Convert a YouTube URL into compact timestamped agent context: brief, key points, chapters, claims, actions, technical commands, context pack and optional evidence Q&A", mimeType: "application/json", serviceName: "Agent Video Analyze", tags: ["agents","youtube","video","summary","research","q&a"], extensions: videoAnalyzeDiscovery },
+        "GET /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Extract agent-ready context from a public YouTube video: transcript highlights, timestamped key points, chapters, technical tutorial commands, action items, candidate claims, context pack and optional evidence Q&A. Use for summarize YouTube, video-to-context and command extraction workflows.", mimeType: "application/json", serviceName: "YouTube Video Context & Technical Command Extractor", tags: ["agents","youtube","video","transcript","video-to-text","timestamped-context","technical-tutorial","commands","summary","research","q&a"], extensions: videoAnalyzeBrowserDiscovery },
+        "POST /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Extract agent-ready context from a public YouTube video: transcript highlights, timestamped key points, chapters, technical tutorial commands, action items, candidate claims, context pack and optional evidence Q&A. Use for summarize YouTube, video-to-context and command extraction workflows.", mimeType: "application/json", serviceName: "YouTube Video Context & Technical Command Extractor", tags: ["agents","youtube","video","transcript","video-to-text","timestamped-context","technical-tutorial","commands","summary","research","q&a"], extensions: videoAnalyzeDiscovery },
       } : {}),
     }, resourceServer, {
       appName: "Agent Product Normalizer",
