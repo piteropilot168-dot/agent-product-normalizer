@@ -35,13 +35,21 @@ import {
   redactSecretsBrowserDiscovery, redactSecretsDiscovery,
   handoffDiffBrowserDiscovery, handoffDiffDiscovery,
   chooseNextStepBrowserDiscovery, chooseNextStepDiscovery,
+  videoTranscriptBrowserDiscovery, videoTranscriptDiscovery,
+  videoBriefBrowserDiscovery, videoBriefDiscovery,
+  videoKeyPointsBrowserDiscovery, videoKeyPointsDiscovery,
+  videoAnswerQuestionBrowserDiscovery, videoAnswerQuestionDiscovery,
+  videoChaptersBrowserDiscovery, videoChaptersDiscovery,
+  videoClaimsBrowserDiscovery, videoClaimsDiscovery,
+  videoActionItemsBrowserDiscovery, videoActionItemsDiscovery,
+  videoAnalyzeBrowserDiscovery, videoAnalyzeDiscovery,
 } from "./discovery.mjs";
 import { normalizeProductPage } from "./normalize.mjs";
 import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
 import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep } from "./agentops.mjs";
-import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems } from "./video.mjs";
+import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
 import {
   compareOffers,
   extractOffer,
@@ -58,7 +66,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.7.0",
+    version: "0.7.1",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
@@ -88,6 +96,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       { id: "video-chapters", methods: ["GET", "POST"], path: "/api/v1/video-chapters", price: config.prices.videoChapters },
       { id: "video-claims", methods: ["GET", "POST"], path: "/api/v1/video-claims", price: config.prices.videoClaims },
       { id: "video-action-items", methods: ["GET", "POST"], path: "/api/v1/video-action-items", price: config.prices.videoActionItems },
+      ...(config.transcriptProviderApiKey ? [{ id: "video-analyze", methods: ["GET", "POST"], path: "/api/v1/video-analyze", price: config.prices.videoAnalyze }] : []),
     ],
     docs: "/openapi.json",
     browser_tests: {
@@ -110,12 +119,14 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       redact_secrets: "/test-redact-secrets",
       handoff_diff: "/test-handoff-diff",
       choose_next_step: "/test-choose-next-step",
+      video_transcript: "/test-video-transcript",
+      video_analyze: "/test-video-analyze",
     },
   };
 
   app.get("/", (_req, res) => res.json(catalog));
   app.get("/catalog", (_req, res) => res.json(catalog));
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.7.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.7.1" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
   app.get("/llms.txt", (req, res) => {
@@ -166,7 +177,7 @@ Human/browser tests:
 - ${baseUrl}/test-should-ask-human
 - ${baseUrl}/test-extract-constraints
 - ${baseUrl}/test-rank-results
-
+${config.transcriptProviderApiKey ? `- ${baseUrl}/test-video-transcript\n- ${baseUrl}/test-video-analyze\n` : ""}
 This service is already listed through x402 Bazaar discovery after successful settlement.
 `);
   });
@@ -197,7 +208,7 @@ This service is already listed through x402 Bazaar discovery after successful se
     res.json({
       name: "Agent Product Normalizer",
       description: "x402-paid friction-killing utilities for AI agents plus commerce normalization, validation and offer comparison.",
-      version: "0.7.0",
+      version: "0.7.1",
       url: baseUrl,
       capabilities: [
         "task-clarification",
@@ -355,6 +366,12 @@ Asset: USDC.
   app.get("/test-redact-secrets", (_req, res) => res.redirect(`/api/v1/redact-secrets?text=${encodeURIComponent("token=ghp_abcdefghijklmnopqrstuvwxyz123456")}`));
   app.get("/test-handoff-diff", (_req, res) => res.redirect(`/api/v1/handoff-diff?before=${encodeURIComponent("Deploy pending. Waiting on DNS.")}&after=${encodeURIComponent("Deploy pending. Waiting on DNS. DNS is live.")}`));
   app.get("/test-choose-next-step", (_req, res) => res.redirect(`/api/v1/choose-next-step?state=${encodeURIComponent("Deployment is blocked waiting for DNS.")}&actions=${encodeURIComponent("Write launch post|Verify DNS|Buy ads")}`));
+
+  if (config.transcriptProviderApiKey) {
+    const demoVideoUrl = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
+    app.get("/test-video-transcript", (_req, res) => res.redirect(`/api/v1/video-transcript?url=${encodeURIComponent(demoVideoUrl)}`));
+    app.get("/test-video-analyze", (_req, res) => res.redirect(`/api/v1/video-analyze?url=${encodeURIComponent(demoVideoUrl)}&question=${encodeURIComponent("What is this video about?")}`));
+  }
 
   if (payments) {
     const browserPaywall = createPaywall()
@@ -541,21 +558,25 @@ Asset: USDC.
       "GET /api/v1/choose-next-step": { accepts: accepts(config.prices.chooseNextStep), description: "Rank candidate next actions against the current agent state", mimeType: "application/json", serviceName: "Agent Next Step Selector", tags: ["agents","planning","next-step","workflow"], extensions: chooseNextStepBrowserDiscovery },
       "POST /api/v1/choose-next-step": { accepts: accepts(config.prices.chooseNextStep), description: "Rank candidate next actions against the current agent state", mimeType: "application/json", serviceName: "Agent Next Step Selector", tags: ["agents","planning","next-step","workflow"], extensions: chooseNextStepDiscovery },
       ...(config.transcriptProviderApiKey ? {
-        "GET /api/v1/video-transcript": { accepts: accepts(config.prices.videoTranscript), description: "Fetch a timestamped YouTube transcript so agents do not need to watch the video", mimeType: "application/json", serviceName: "Agent YouTube Transcript", tags: ["agents","youtube","video","transcript","research"] },
-        "POST /api/v1/video-transcript": { accepts: accepts(config.prices.videoTranscript), description: "Fetch a timestamped YouTube transcript so agents do not need to watch the video", mimeType: "application/json", serviceName: "Agent YouTube Transcript", tags: ["agents","youtube","video","transcript","research"] },
+        "GET /api/v1/video-transcript": { accepts: accepts(config.prices.videoTranscript), description: "Fetch a timestamped YouTube transcript so agents do not need to watch the video", mimeType: "application/json", serviceName: "Agent YouTube Transcript", tags: ["agents","youtube","video","transcript","research"], extensions: videoTranscriptBrowserDiscovery },
+        "POST /api/v1/video-transcript": { accepts: accepts(config.prices.videoTranscript), description: "Fetch a timestamped YouTube transcript so agents do not need to watch the video", mimeType: "application/json", serviceName: "Agent YouTube Transcript", tags: ["agents","youtube","video","transcript","research"], extensions: videoTranscriptDiscovery },
       } : {}),
-      "GET /api/v1/video-brief": { accepts: accepts(config.prices.videoBrief), description: "Turn a long video transcript into a compact agent brief", mimeType: "application/json", serviceName: "Agent Video Brief", tags: ["agents","video","summary","tokens"] },
-      "POST /api/v1/video-brief": { accepts: accepts(config.prices.videoBrief), description: "Turn a long video transcript into a compact agent brief", mimeType: "application/json", serviceName: "Agent Video Brief", tags: ["agents","video","summary","tokens"] },
-      "GET /api/v1/video-key-points": { accepts: accepts(config.prices.videoKeyPoints), description: "Extract the most useful points from a video transcript", mimeType: "application/json", serviceName: "Agent Video Key Points", tags: ["agents","video","key-points","research"] },
-      "POST /api/v1/video-key-points": { accepts: accepts(config.prices.videoKeyPoints), description: "Extract the most useful points from a video transcript", mimeType: "application/json", serviceName: "Agent Video Key Points", tags: ["agents","video","key-points","research"] },
-      "GET /api/v1/video-answer-question": { accepts: accepts(config.prices.videoAnswerQuestion), description: "Answer a question from the supplied transcript and return evidence passages", mimeType: "application/json", serviceName: "Agent Video Q&A", tags: ["agents","video","question-answering","evidence"] },
-      "POST /api/v1/video-answer-question": { accepts: accepts(config.prices.videoAnswerQuestion), description: "Answer a question from the supplied transcript and return evidence passages", mimeType: "application/json", serviceName: "Agent Video Q&A", tags: ["agents","video","question-answering","evidence"] },
-      "GET /api/v1/video-chapters": { accepts: accepts(config.prices.videoChapters), description: "Split a transcript into compact topic chapters", mimeType: "application/json", serviceName: "Agent Video Chapters", tags: ["agents","video","chapters","structure"] },
-      "POST /api/v1/video-chapters": { accepts: accepts(config.prices.videoChapters), description: "Split a transcript into compact topic chapters", mimeType: "application/json", serviceName: "Agent Video Chapters", tags: ["agents","video","chapters","structure"] },
-      "GET /api/v1/video-claims": { accepts: accepts(config.prices.videoClaims), description: "Extract factual claims from video transcript for later verification", mimeType: "application/json", serviceName: "Agent Video Claims", tags: ["agents","video","claims","fact-check"] },
-      "POST /api/v1/video-claims": { accepts: accepts(config.prices.videoClaims), description: "Extract factual claims from video transcript for later verification", mimeType: "application/json", serviceName: "Agent Video Claims", tags: ["agents","video","claims","fact-check"] },
-      "GET /api/v1/video-action-items": { accepts: accepts(config.prices.videoActionItems), description: "Extract concrete action items from video transcript", mimeType: "application/json", serviceName: "Agent Video Action Items", tags: ["agents","video","actions","workflow"] },
-      "POST /api/v1/video-action-items": { accepts: accepts(config.prices.videoActionItems), description: "Extract concrete action items from video transcript", mimeType: "application/json", serviceName: "Agent Video Action Items", tags: ["agents","video","actions","workflow"] },
+      "GET /api/v1/video-brief": { accepts: accepts(config.prices.videoBrief), description: "Turn a long video transcript into a compact agent brief", mimeType: "application/json", serviceName: "Agent Video Brief", tags: ["agents","video","summary","tokens"], extensions: videoBriefBrowserDiscovery },
+      "POST /api/v1/video-brief": { accepts: accepts(config.prices.videoBrief), description: "Turn a long video transcript into a compact agent brief", mimeType: "application/json", serviceName: "Agent Video Brief", tags: ["agents","video","summary","tokens"], extensions: videoBriefDiscovery },
+      "GET /api/v1/video-key-points": { accepts: accepts(config.prices.videoKeyPoints), description: "Extract the most useful points from a video transcript", mimeType: "application/json", serviceName: "Agent Video Key Points", tags: ["agents","video","key-points","research"], extensions: videoKeyPointsBrowserDiscovery },
+      "POST /api/v1/video-key-points": { accepts: accepts(config.prices.videoKeyPoints), description: "Extract the most useful points from a video transcript", mimeType: "application/json", serviceName: "Agent Video Key Points", tags: ["agents","video","key-points","research"], extensions: videoKeyPointsDiscovery },
+      "GET /api/v1/video-answer-question": { accepts: accepts(config.prices.videoAnswerQuestion), description: "Answer a question from the supplied transcript and return evidence passages", mimeType: "application/json", serviceName: "Agent Video Q&A", tags: ["agents","video","question-answering","evidence"], extensions: videoAnswerQuestionBrowserDiscovery },
+      "POST /api/v1/video-answer-question": { accepts: accepts(config.prices.videoAnswerQuestion), description: "Answer a question from the supplied transcript and return evidence passages", mimeType: "application/json", serviceName: "Agent Video Q&A", tags: ["agents","video","question-answering","evidence"], extensions: videoAnswerQuestionDiscovery },
+      "GET /api/v1/video-chapters": { accepts: accepts(config.prices.videoChapters), description: "Split a transcript into compact topic chapters", mimeType: "application/json", serviceName: "Agent Video Chapters", tags: ["agents","video","chapters","structure"], extensions: videoChaptersBrowserDiscovery },
+      "POST /api/v1/video-chapters": { accepts: accepts(config.prices.videoChapters), description: "Split a transcript into compact topic chapters", mimeType: "application/json", serviceName: "Agent Video Chapters", tags: ["agents","video","chapters","structure"], extensions: videoChaptersDiscovery },
+      "GET /api/v1/video-claims": { accepts: accepts(config.prices.videoClaims), description: "Extract factual claims from video transcript for later verification", mimeType: "application/json", serviceName: "Agent Video Claims", tags: ["agents","video","claims","fact-check"], extensions: videoClaimsBrowserDiscovery },
+      "POST /api/v1/video-claims": { accepts: accepts(config.prices.videoClaims), description: "Extract factual claims from video transcript for later verification", mimeType: "application/json", serviceName: "Agent Video Claims", tags: ["agents","video","claims","fact-check"], extensions: videoClaimsDiscovery },
+      "GET /api/v1/video-action-items": { accepts: accepts(config.prices.videoActionItems), description: "Extract concrete action items from video transcript", mimeType: "application/json", serviceName: "Agent Video Action Items", tags: ["agents","video","actions","workflow"], extensions: videoActionItemsBrowserDiscovery },
+      "POST /api/v1/video-action-items": { accepts: accepts(config.prices.videoActionItems), description: "Extract concrete action items from video transcript", mimeType: "application/json", serviceName: "Agent Video Action Items", tags: ["agents","video","actions","workflow"], extensions: videoActionItemsDiscovery },
+      ...(config.transcriptProviderApiKey ? {
+        "GET /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Fetch one YouTube transcript and return a compact all-in-one analysis for agents", mimeType: "application/json", serviceName: "Agent Video Analyze", tags: ["agents","youtube","video","summary","research","q&a"], extensions: videoAnalyzeBrowserDiscovery },
+        "POST /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Fetch one YouTube transcript and return a compact all-in-one analysis for agents", mimeType: "application/json", serviceName: "Agent Video Analyze", tags: ["agents","youtube","video","summary","research","q&a"], extensions: videoAnalyzeDiscovery },
+      } : {}),
     }, resourceServer, {
       appName: "Agent Product Normalizer",
       testnet: false,
@@ -714,6 +735,8 @@ Asset: USDC.
   app.get("/api/v1/video-action-items",videoSimple(videoActionItems)); app.post("/api/v1/video-action-items",videoSimple(videoActionItems));
   const videoQa=(req,res,next)=>{try{const source=req.method==="GET"?req.query:req.body;res.set("cache-control","no-store").json(videoAnswerQuestion(source?.transcript,source?.question));}catch(error){next(error);}};
   app.get("/api/v1/video-answer-question",videoQa); app.post("/api/v1/video-answer-question",videoQa);
+  const videoAnalyzeHandler=async(req,res,next)=>{try{const source=req.method==="GET"?req.query:req.body;const fetched=await fetchVideoTranscript(source?.url,{apiKey:config.transcriptProviderApiKey,lang:source?.lang,timeoutMs:15000});const analysis=videoAnalyze(fetched.transcript,{question:source?.question||"",keyPointLimit:source?.key_point_limit||10,chapterTarget:source?.chapter_target||8});res.set("cache-control","no-store").json({source_url:fetched.source_url,lang:fetched.lang,provider:fetched.provider,segment_count:Array.isArray(fetched.segments)?fetched.segments.length:0,...analysis});}catch(error){next(error);}};
+  app.get("/api/v1/video-analyze",videoAnalyzeHandler); app.post("/api/v1/video-analyze",videoAnalyzeHandler);
 
   app.use((error, _req, res, _next) => {
     if (error instanceof InputError) {

@@ -228,3 +228,37 @@ export const handoffDiffDiscovery = declareDiscoveryExtension({ method: "POST", 
 const nextStepOutput = { example: { selected_index: 1, selected_action: "Verify DNS", confidence: "medium", ranking: [{ index: 1, action: "Verify DNS", score: 3 }] } };
 export const chooseNextStepBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { state: "Deployment is blocked waiting for DNS.", actions: "Write launch post|Verify DNS|Buy ads" }, inputSchema: { type: "object", properties: { state: textProperty("Current agent state",12000), actions: { type: "string", maxLength: 12000, description: "Candidate actions separated by | or newlines" } }, required: ["state","actions"], additionalProperties: false }, output: nextStepOutput });
 export const chooseNextStepDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { state: "Deployment is blocked waiting for DNS.", actions: ["Write launch post","Verify DNS","Buy ads"] }, inputSchema: { type: "object", properties: { state: textProperty("Current agent state",12000), actions: { type: "array", minItems: 1, maxItems: 30, items: { type: "string", maxLength: 1000 } } }, required: ["state","actions"], additionalProperties: false }, output: nextStepOutput });
+
+
+const youtubeUrlProperty = { type: "string", format: "uri", description: "Public YouTube video URL", maxLength: 2048 };
+const videoTranscriptOutput = { example: { source_url: "https://www.youtube.com/watch?v=jNQXAC9IVRw", lang: "de", transcript: "Example transcript text", segments: [{ lang: "de", text: "Example transcript text", offset: 0, duration: 1000 }], provider: "supadata" } };
+export const videoTranscriptBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { url: "https://www.youtube.com/watch?v=jNQXAC9IVRw" }, inputSchema: { type: "object", properties: { url: youtubeUrlProperty, lang: { type: "string", maxLength: 20 } }, required: ["url"], additionalProperties: false }, output: videoTranscriptOutput });
+export const videoTranscriptDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { url: "https://www.youtube.com/watch?v=jNQXAC9IVRw" }, inputSchema: { type: "object", properties: { url: youtubeUrlProperty, lang: { type: "string", maxLength: 20 } }, required: ["url"], additionalProperties: false }, output: videoTranscriptOutput });
+
+const videoBriefOutput = { example: { summary: "Compact video summary", key_points: ["Point one", "Point two"], stats: { chars: 1200, sentences: 20, estimated_words: 220 } } };
+export const videoBriefBrowserDiscovery = textGet("transcript", "Video transcript text", "Example transcript text with several sentences.", videoBriefOutput);
+export const videoBriefDiscovery = textPost("transcript", "Video transcript text", "Example transcript text with several sentences.", videoBriefOutput);
+
+const videoKeyPointsOutput = { example: { count: 3, points: ["Point one", "Point two", "Point three"] } };
+export const videoKeyPointsBrowserDiscovery = textGet("transcript", "Video transcript text", "Example transcript text with several sentences.", videoKeyPointsOutput);
+export const videoKeyPointsDiscovery = textPost("transcript", "Video transcript text", "Example transcript text with several sentences.", videoKeyPointsOutput, { input: { limit: 10 }, properties: { limit: { type: "integer", minimum: 3, maximum: 20 } } });
+
+const videoQaOutput = { example: { question: "What is the main point?", answer: "Relevant evidence passage.", evidence: ["Relevant evidence passage."], confidence: 0.7 } };
+export const videoAnswerQuestionBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { transcript: "Example transcript text.", question: "What is the main point?" }, inputSchema: { type: "object", properties: { transcript: textProperty("Video transcript text",120000), question: textProperty("Question to answer from transcript",4000) }, required: ["transcript","question"], additionalProperties: false }, output: videoQaOutput });
+export const videoAnswerQuestionDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { transcript: "Example transcript text.", question: "What is the main point?" }, inputSchema: { type: "object", properties: { transcript: textProperty("Video transcript text",120000), question: textProperty("Question to answer from transcript",4000) }, required: ["transcript","question"], additionalProperties: false }, output: videoQaOutput });
+
+const videoChaptersOutput = { example: { count: 2, chapters: [{ chapter: 1, title: "Opening", summary: "Opening topic", start_sentence: 0 }] } };
+export const videoChaptersBrowserDiscovery = textGet("transcript", "Video transcript text", "Example transcript text with several sentences.", videoChaptersOutput);
+export const videoChaptersDiscovery = textPost("transcript", "Video transcript text", "Example transcript text with several sentences.", videoChaptersOutput, { input: { target: 8 }, properties: { target: { type: "integer", minimum: 3, maximum: 20 } } });
+
+const videoClaimsOutput = { example: { count: 1, claims: [{ index: 0, claim: "Example factual claim", has_number: false, needs_verification: true }] } };
+export const videoClaimsBrowserDiscovery = textGet("transcript", "Video transcript text", "Example transcript text with a factual claim.", videoClaimsOutput);
+export const videoClaimsDiscovery = textPost("transcript", "Video transcript text", "Example transcript text with a factual claim.", videoClaimsOutput);
+
+const videoActionsOutput = { example: { count: 1, action_items: ["Next, verify the result."] } };
+export const videoActionItemsBrowserDiscovery = textGet("transcript", "Video transcript text", "Next, verify the result.", videoActionsOutput);
+export const videoActionItemsDiscovery = textPost("transcript", "Video transcript text", "Next, verify the result.", videoActionsOutput);
+
+const videoAnalyzeOutput = { example: { source_url: "https://www.youtube.com/watch?v=jNQXAC9IVRw", lang: "de", provider: "supadata", brief: { summary: "Compact summary", key_points: ["Point one"] }, key_points: { count: 1, points: ["Point one"] }, chapters: { count: 1, chapters: [{ chapter: 1, title: "Topic", summary: "Topic", start_sentence: 0 }] }, claims: { count: 0, claims: [] }, action_items: { count: 0, action_items: [] } } };
+export const videoAnalyzeBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { url: "https://www.youtube.com/watch?v=jNQXAC9IVRw" }, inputSchema: { type: "object", properties: { url: youtubeUrlProperty, lang: { type: "string", maxLength: 20 }, question: textProperty("Optional question to answer from the video",4000) }, required: ["url"], additionalProperties: false }, output: videoAnalyzeOutput });
+export const videoAnalyzeDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { url: "https://www.youtube.com/watch?v=jNQXAC9IVRw", question: "What is the main point?" }, inputSchema: { type: "object", properties: { url: youtubeUrlProperty, lang: { type: "string", maxLength: 20 }, question: textProperty("Optional question to answer from the video",4000), key_point_limit: { type: "integer", minimum: 3, maximum: 20 }, chapter_target: { type: "integer", minimum: 3, maximum: 20 } }, required: ["url"], additionalProperties: false }, output: videoAnalyzeOutput });

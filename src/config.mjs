@@ -29,7 +29,8 @@ export const config = {
     videoAnswerQuestion: process.env.X402_PRICE_VIDEO_ANSWER || "$0.006",
     videoChapters: process.env.X402_PRICE_VIDEO_CHAPTERS || "$0.004",
     videoClaims: process.env.X402_PRICE_VIDEO_CLAIMS || "$0.004",
-    videoActionItems: process.env.X402_PRICE_VIDEO_ACTIONS || "$0.003"
+    videoActionItems: process.env.X402_PRICE_VIDEO_ACTIONS || "$0.003",
+    videoAnalyze: process.env.X402_PRICE_VIDEO_ANALYZE || "$0.025"
   },
   facilitatorUrl: process.env.X402_FACILITATOR_URL || "https://facilitator.payai.network",
   fetchTimeoutMs: Number(process.env.FETCH_TIMEOUT_MS || 8000),

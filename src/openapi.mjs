@@ -35,7 +35,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
     openapi: "3.1.0",
     info: {
       title: "Agent Product Normalizer + Video Intelligence API",
-      version: "0.7.0",
+      version: "0.7.1",
       description: "Paid x402 micro-utilities for AI agents plus commerce-data utilities. USDC on Base. Every service supports GET plus agent-friendly POST.",
     },
     servers: [{ url: baseUrl }],
@@ -92,6 +92,10 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
       "/api/v1/video-chapters": { get: textGet("videoChaptersGet", "Create topic chapters from transcript", "transcript", 120000), post: textPost("videoChapters", "Create topic chapters from transcript", "transcript", 120000, { properties: { target: { type: "integer", minimum: 3, maximum: 20 } } }) },
       "/api/v1/video-claims": { get: textGet("videoClaimsGet", "Extract claims to verify from transcript", "transcript", 120000), post: textPost("videoClaims", "Extract claims to verify from transcript", "transcript", 120000) },
       "/api/v1/video-action-items": { get: textGet("videoActionItemsGet", "Extract action items from transcript", "transcript", 120000), post: textPost("videoActionItems", "Extract action items from transcript", "transcript", 120000) },
+      "/api/v1/video-analyze": {
+        get: { operationId: "videoAnalyzeByUrl", summary: "Fetch one YouTube transcript and return an all-in-one agent analysis", parameters: [{ name: "url", in: "query", required: true, schema: url }, { name: "lang", in: "query", required: false, schema: { type: "string", maxLength: 20 } }, { name: "question", in: "query", required: false, schema: { type: "string", maxLength: 4000 } }], responses },
+        post: { operationId: "videoAnalyze", summary: "Fetch one YouTube transcript and return an all-in-one agent analysis", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["url"], properties: { url, lang: { type: "string", maxLength: 20 }, question: { type: "string", maxLength: 4000 }, key_point_limit: { type: "integer", minimum: 3, maximum: 20 }, chapter_target: { type: "integer", minimum: 3, maximum: 20 } }, additionalProperties: false } } } }, responses },
+      },
       "/api/v1/rank-results": {
         get: { operationId: "rankSearchResultsFromJson", summary: "Rank search results; GET accepts results as a JSON-array string", parameters: [{ name: "query", in: "query", required: true, schema: { type: "string", maxLength: 4000 } }, { name: "results", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }], responses },
         post: { operationId: "rankSearchResults", summary: "Rank search results and flag duplicates, stale results and spam signals", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["query", "results"], properties: { query: { type: "string", maxLength: 4000 }, results: { type: "array", minItems: 1, maxItems: 25, items: resultItem } }, additionalProperties: false } } } }, responses },

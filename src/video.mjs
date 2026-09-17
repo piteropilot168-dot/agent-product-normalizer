@@ -59,3 +59,17 @@ export async function fetchVideoTranscript(url,{apiKey,lang,timeoutMs=15000}={})
   }catch(e){ if(e?.name==="AbortError") throw new InputError("transcript provider timed out",504,"TRANSCRIPT_PROVIDER_TIMEOUT"); throw e; }
   finally{clearTimeout(timer)}
 }
+
+
+export function videoAnalyze(raw, { question = "", keyPointLimit = 10, chapterTarget = 8 } = {}) {
+  const transcript = text(raw);
+  const result = {
+    brief: videoBrief(transcript),
+    key_points: videoKeyPoints(transcript, keyPointLimit),
+    chapters: videoChapters(transcript, chapterTarget),
+    claims: videoClaims(transcript),
+    action_items: videoActionItems(transcript),
+  };
+  if (typeof question === "string" && question.trim()) result.answer = videoAnswerQuestion(transcript, question);
+  return result;
+}
