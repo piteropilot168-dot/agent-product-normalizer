@@ -21,9 +21,14 @@ export function videoBrief(raw){
 }
 export function videoKeyPoints(raw, limit=10){ const t=text(raw); const n=Math.max(3,Math.min(20,Number(limit)||10)); return {count:Math.min(n,sentences(t).length), points:topSentences(t,n)}; }
 export function videoClaims(raw){
-  const t=text(raw); const claimRe=/\b(is|are|was|were|will|can|cannot|causes?|leads? to|increases?|decreases?|proves?|shows?|means?|equals?|must|should)\b/i;
+  const t=text(raw);
+  const claimRe=/\b(is|are|was|were|will|can|cannot|causes?|leads? to|increases?|decreases?|proves?|shows?|means?|equals?|must|should|ist|sind|war|waren|wird|werden|kann|können|muss|müssen|soll|sollte|zeigt|bedeutet|führt zu|jest|są|był|była|było|będą|może|mogą|musi|muszą|powinien|powinna|pokazuje|oznacza|prowadzi do|es|son|fue|será|puede|debe|muestra|significa|est|sont|était|sera|peut|doit|montre|signifie)\b/i;
   const numberRe=/\b\d+(?:[.,]\d+)?%?\b/;
-  const claims=sentences(t).filter(s=>claimRe.test(s)||numberRe.test(s)).slice(0,30).map((claim,index)=>({index,claim,has_number:numberRe.test(claim),needs_verification:true}));
+  const declarativeRe=/\b(hat|haben|gibt|gibt es|ma|mają|posiada|posiadają|tiene|tienen|a|ont|has|have)\b/i;
+  const claims=sentences(t)
+    .filter(s=>claimRe.test(s)||declarativeRe.test(s)||numberRe.test(s))
+    .slice(0,30)
+    .map((claim,index)=>({index,claim,has_number:numberRe.test(claim),needs_verification:true}));
   return {count:claims.length,claims};
 }
 export function videoActionItems(raw){
@@ -32,14 +37,67 @@ export function videoActionItems(raw){
   return {count:items.length,action_items:items};
 }
 export function videoAnswerQuestion(raw, rawQuestion){
-  const t=text(raw); const q=text(rawQuestion,"question",4000); const qWords=new Set(words(q));
-  const ranked=sentences(t).map((s,i)=>{const sw=words(s); const overlap=sw.filter(w=>qWords.has(w)).length; return {i,s,score:overlap/(Math.sqrt(sw.length||1))};}).sort((a,b)=>b.score-a.score).slice(0,5);
+  const t=text(raw);
+  const q=text(rawQuestion,"question",4000);
+  const qWords=new Set(words(q));
+  const ranked=sentences(t)
+    .map((s,i)=>{const sw=words(s); const overlap=sw.filter(w=>qWords.has(w)).length; return {i,s,score:overlap/(Math.sqrt(sw.length||1))};})
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,5);
+
   const evidence=ranked.filter(x=>x.score>0).map(x=>x.s);
-  return {question:q,answer:evidence.length?evidence.slice(0,3).join(" "):"No directly relevant passage found in the supplied transcript.",evidence:evidence.slice(0,5),confidence:evidence.length?Number(Math.min(0.95,0.45+ranked[0].score*0.25).toFixed(2)):0.15};
+  const genericAbout=/\b(what is (this|the) video about|what does (this|the) video discuss|summari[sz]e (this|the) video|o czym (jest )?(ten|to) film|worum geht es|worum geht dieses video|de quoi parle|de qué trata)\b/i.test(q);
+
+  if(evidence.length){
+    return {
+      question:q,
+      answer:evidence.slice(0,3).join(" "),
+      evidence:evidence.slice(0,5),
+      confidence:Number(Math.min(0.95,0.45+ranked[0].score*0.25).toFixed(2)),
+      mode:"lexical-evidence"
+    };
+  }
+
+  if(genericAbout){
+    const summary=videoBrief(t).summary;
+    return {
+      question:q,
+      answer:summary || "No useful summary could be extracted from the supplied transcript.",
+      evidence:summary ? topSentences(t,3) : [],
+      confidence:summary ? 0.62 : 0.15,
+      mode:"summary-fallback"
+    };
+  }
+
+  return {
+    question:q,
+    answer:"No directly relevant passage found in the supplied transcript.",
+    evidence:[],
+    confidence:0.15,
+    mode:"no-match",
+    note:"For cross-language or semantic questions, ask in the transcript language or use the all-in-one result as context for a model."
+  };
 }
 export function videoChapters(raw, target=8){
-  const t=text(raw); const ss=sentences(t); const n=Math.max(3,Math.min(20,Number(target)||8)); const size=Math.max(1,Math.ceil(ss.length/n)); const chapters=[];
-  for(let i=0;i<ss.length;i+=size){ const chunk=ss.slice(i,i+size); if(!chunk.length) continue; const top=topSentences(chunk.join(" "),1)[0]||chunk[0]; chapters.push({chapter:chapters.length+1,title:top.slice(0,100),summary:top,start_sentence:i}); }
+  const t=text(raw);
+  const ss=sentences(t);
+  if(ss.length <= 6){
+    const top=topSentences(t,1)[0]||ss[0]||"Video";
+    return {count:ss.length?1:0,chapters:ss.length?[{chapter:1,title:top.slice(0,100),summary:top,start_sentence:0}]:[]};
+  }
+
+  const requested=Math.max(2,Math.min(20,Number(target)||8));
+  const maxBySize=Math.max(1,Math.floor(ss.length/4));
+  const n=Math.max(1,Math.min(requested,maxBySize));
+  const size=Math.max(4,Math.ceil(ss.length/n));
+  const chapters=[];
+
+  for(let i=0;i<ss.length;i+=size){
+    const chunk=ss.slice(i,i+size);
+    if(!chunk.length) continue;
+    const top=topSentences(chunk.join(" "),1)[0]||chunk[0];
+    chapters.push({chapter:chapters.length+1,title:top.slice(0,100),summary:top,start_sentence:i});
+  }
   return {count:chapters.length,chapters};
 }
 
@@ -61,15 +119,56 @@ export async function fetchVideoTranscript(url,{apiKey,lang,timeoutMs=15000}={})
 }
 
 
-export function videoAnalyze(raw, { question = "", keyPointLimit = 10, chapterTarget = 8 } = {}) {
+function segmentTimestampMatch(sentence, segments=[]){
+  if(!Array.isArray(segments) || !segments.length) return null;
+  const target=new Set(words(sentence));
+  let best=null, bestScore=0;
+  for(const seg of segments){
+    const sw=words(seg?.text||"");
+    if(!sw.length) continue;
+    const overlap=sw.filter(w=>target.has(w)).length;
+    const score=overlap/Math.sqrt(sw.length);
+    if(score>bestScore){
+      bestScore=score;
+      best=seg;
+    }
+  }
+  if(!best || bestScore<=0) return null;
+  const ms=Number(best.offset||0);
+  return {timestamp_ms:ms,timestamp_s:Number((ms/1000).toFixed(3))};
+}
+
+function withTimestamps(items, segments=[]){
+  return items.map(item=>{
+    const sentence=typeof item==="string"?item:(item?.text||item?.summary||item?.claim||"");
+    const ts=segmentTimestampMatch(sentence,segments);
+    return typeof item==="string"
+      ? {text:item,...(ts||{})}
+      : {...item,...(ts||{})};
+  });
+}
+
+
+export function videoAnalyze(raw, { question = "", keyPointLimit = 10, chapterTarget = 8, segments = [] } = {}) {
   const transcript = text(raw);
+  const brief = videoBrief(transcript);
+  const kp = videoKeyPoints(transcript, keyPointLimit);
+  const chapters = videoChapters(transcript, chapterTarget);
+  const claims = videoClaims(transcript);
+  const actions = videoActionItems(transcript);
+
   const result = {
-    brief: videoBrief(transcript),
-    key_points: videoKeyPoints(transcript, keyPointLimit),
-    chapters: videoChapters(transcript, chapterTarget),
-    claims: videoClaims(transcript),
-    action_items: videoActionItems(transcript),
+    brief,
+    key_points: {...kp, timed_points: withTimestamps(kp.points,segments)},
+    chapters: {...chapters, chapters: withTimestamps(chapters.chapters,segments)},
+    claims: {...claims, claims: withTimestamps(claims.claims,segments)},
+    action_items: {...actions, action_items: withTimestamps(actions.action_items,segments)},
   };
-  if (typeof question === "string" && question.trim()) result.answer = videoAnswerQuestion(transcript, question);
+
+  if (typeof question === "string" && question.trim()) {
+    const answer = videoAnswerQuestion(transcript, question);
+    result.answer = {...answer, timed_evidence: withTimestamps(answer.evidence||[],segments)};
+  }
+
   return result;
 }

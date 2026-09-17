@@ -66,7 +66,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.7.1",
+    version: "0.7.2",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
@@ -126,7 +126,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   app.get("/", (_req, res) => res.json(catalog));
   app.get("/catalog", (_req, res) => res.json(catalog));
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.7.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.7.2" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
   app.get("/llms.txt", (req, res) => {
@@ -208,7 +208,7 @@ This service is already listed through x402 Bazaar discovery after successful se
     res.json({
       name: "Agent Product Normalizer",
       description: "x402-paid friction-killing utilities for AI agents plus commerce normalization, validation and offer comparison.",
-      version: "0.7.1",
+      version: "0.7.2",
       url: baseUrl,
       capabilities: [
         "task-clarification",
@@ -735,7 +735,7 @@ Asset: USDC.
   app.get("/api/v1/video-action-items",videoSimple(videoActionItems)); app.post("/api/v1/video-action-items",videoSimple(videoActionItems));
   const videoQa=(req,res,next)=>{try{const source=req.method==="GET"?req.query:req.body;res.set("cache-control","no-store").json(videoAnswerQuestion(source?.transcript,source?.question));}catch(error){next(error);}};
   app.get("/api/v1/video-answer-question",videoQa); app.post("/api/v1/video-answer-question",videoQa);
-  const videoAnalyzeHandler=async(req,res,next)=>{try{const source=req.method==="GET"?req.query:req.body;const fetched=await fetchVideoTranscript(source?.url,{apiKey:config.transcriptProviderApiKey,lang:source?.lang,timeoutMs:15000});const analysis=videoAnalyze(fetched.transcript,{question:source?.question||"",keyPointLimit:source?.key_point_limit||10,chapterTarget:source?.chapter_target||8});res.set("cache-control","no-store").json({source_url:fetched.source_url,lang:fetched.lang,provider:fetched.provider,segment_count:Array.isArray(fetched.segments)?fetched.segments.length:0,...analysis});}catch(error){next(error);}};
+  const videoAnalyzeHandler=async(req,res,next)=>{try{const source=req.method==="GET"?req.query:req.body;const fetched=await fetchVideoTranscript(source?.url,{apiKey:config.transcriptProviderApiKey,lang:source?.lang,timeoutMs:15000});const analysis=videoAnalyze(fetched.transcript,{question:source?.question||"",keyPointLimit:source?.key_point_limit||10,chapterTarget:source?.chapter_target||8,segments:fetched.segments||[]});res.set("cache-control","no-store").json({source_url:fetched.source_url,lang:fetched.lang,provider:fetched.provider,segment_count:Array.isArray(fetched.segments)?fetched.segments.length:0,...analysis});}catch(error){next(error);}};
   app.get("/api/v1/video-analyze",videoAnalyzeHandler); app.post("/api/v1/video-analyze",videoAnalyzeHandler);
 
   app.use((error, _req, res, _next) => {
