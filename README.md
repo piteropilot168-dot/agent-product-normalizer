@@ -1,4 +1,4 @@
-# Agent Product Normalizer + Video Intelligence API v0.7.2
+# Agent Product Normalizer + Video Intelligence API v0.7.3
 
 Machine-first x402 utilities for autonomous agents.
 
@@ -23,7 +23,7 @@ Set `SUPADATA_API_KEY` in Vercel environment variables. The service calls Supada
 
 The v0.6 friction, safety, workflow and commerce endpoints remain available.
 
-## v0.7.2
+## v0.7.3
 
 Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcript`, and adds the all-in-one `video-analyze` endpoint so agents pay once and fetch the transcript once.
 
@@ -32,9 +32,17 @@ Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcri
 `GET /health` → version `0.7.2`.
 
 
-## v0.7.2 quality pass
+## v0.7.3 quality pass
 
 - fixes generic cross-language questions such as `What is this video about?` by falling back to the extracted brief when lexical matching cannot work across languages
 - avoids creating one chapter per sentence for very short videos
 - expands claim detection beyond English to common German, Polish, Spanish and French patterns
 - adds timestamp metadata to key points, chapters, claims, actions and answer evidence in `video-analyze`
+
+
+## v0.7.3 video precision pass
+
+- stricter factual-claim extraction: filters scene-setting, meta commentary and opinion-only lines
+- normalizes constructions such as “the cool thing is that …” down to the factual clause
+- chapter timestamps now point to the chapter start rather than the representative summary sentence
+- `video-analyze` returns duration and compression metrics so agents can estimate how much context they avoided reading

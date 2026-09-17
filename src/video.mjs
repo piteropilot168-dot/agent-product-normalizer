@@ -25,10 +25,36 @@ export function videoClaims(raw){
   const claimRe=/\b(is|are|was|were|will|can|cannot|causes?|leads? to|increases?|decreases?|proves?|shows?|means?|equals?|must|should|ist|sind|war|waren|wird|werden|kann|können|muss|müssen|soll|sollte|zeigt|bedeutet|führt zu|jest|są|był|była|było|będą|może|mogą|musi|muszą|powinien|powinna|pokazuje|oznacza|prowadzi do|es|son|fue|será|puede|debe|muestra|significa|est|sont|était|sera|peut|doit|montre|signifie)\b/i;
   const numberRe=/\b\d+(?:[.,]\d+)?%?\b/;
   const declarativeRe=/\b(hat|haben|gibt|gibt es|ma|mają|posiada|posiadają|tiene|tienen|a|ont|has|have)\b/i;
-  const claims=sentences(t)
-    .filter(s=>claimRe.test(s)||declarativeRe.test(s)||numberRe.test(s))
-    .slice(0,30)
-    .map((claim,index)=>({index,claim,has_number:numberRe.test(claim),needs_verification:true}));
+  const metaRe=/\b(nothing (else )?to say|not (really )?much to say|there (is|isn't) (not )?much to say|ansonsten gibt es nicht wirklich viel zu sagen|nicht viel zu sagen|nie ma (już )?wiele do powiedzenia|niewiele do powiedzenia|no hay mucho que decir|pas grand-chose à dire)\b/i;
+  const sceneRe=/\b(here we are|we are here|hier sind wir|jesteśmy tutaj|aquí estamos|nous sommes ici)\b/i;
+  const opinionRe=/\b(cool|awesome|amazing|great|nice|beautiful|bad|good|interesting|toll|super|gut|schlecht|cooles?|fajny|fajne|świetny|świetne|dobry|dobre|zły|złe|genialny|genialne|bonito|genial|bueno|malo|génial|superbe|bon|mauvais)\b/i;
+
+  const normalizeClaim=(s)=>{
+    const bridge=s.match(/\b(?:is that|ist dass|ist, dass|jest to, że|jest taki, że|es que|c['’]est que)\b\s*(.+)$/i);
+    return (bridge?.[1] || s).trim();
+  };
+
+  const claims=[];
+  for(const source of sentences(t)){
+    if(metaRe.test(source) || sceneRe.test(source)) continue;
+    let claim=normalizeClaim(source);
+    const hasNumber=numberRe.test(claim);
+    const factualSignal=claimRe.test(claim) || declarativeRe.test(claim) || hasNumber;
+    if(!factualSignal) continue;
+
+    // Pure evaluations are not useful fact-check targets.
+    if(opinionRe.test(claim) && !hasNumber && !declarativeRe.test(claim) && !/\b(causes?|leads? to|shows?|means?|führt zu|zeigt|oznacza|pokazuje|muestra|montre)\b/i.test(claim)) continue;
+
+    claims.push({
+      index:claims.length,
+      claim,
+      source_sentence:source,
+      claim_type:"factual",
+      has_number:hasNumber,
+      needs_verification:true
+    });
+    if(claims.length>=30) break;
+  }
   return {count:claims.length,claims};
 }
 export function videoActionItems(raw){
@@ -83,7 +109,7 @@ export function videoChapters(raw, target=8){
   const ss=sentences(t);
   if(ss.length <= 6){
     const top=topSentences(t,1)[0]||ss[0]||"Video";
-    return {count:ss.length?1:0,chapters:ss.length?[{chapter:1,title:top.slice(0,100),summary:top,start_sentence:0}]:[]};
+    return {count:ss.length?1:0,chapters:ss.length?[{chapter:1,title:top.slice(0,100),summary:top,start_sentence:0,start_text:ss[0]}]:[]};
   }
 
   const requested=Math.max(2,Math.min(20,Number(target)||8));
@@ -96,7 +122,7 @@ export function videoChapters(raw, target=8){
     const chunk=ss.slice(i,i+size);
     if(!chunk.length) continue;
     const top=topSentences(chunk.join(" "),1)[0]||chunk[0];
-    chapters.push({chapter:chapters.length+1,title:top.slice(0,100),summary:top,start_sentence:i});
+    chapters.push({chapter:chapters.length+1,title:top.slice(0,100),summary:top,start_sentence:i,start_text:chunk[0]});
   }
   return {count:chapters.length,chapters};
 }
@@ -140,7 +166,7 @@ function segmentTimestampMatch(sentence, segments=[]){
 
 function withTimestamps(items, segments=[]){
   return items.map(item=>{
-    const sentence=typeof item==="string"?item:(item?.text||item?.summary||item?.claim||"");
+    const sentence=typeof item==="string"?item:(item?.start_text||item?.text||item?.summary||item?.claim||"");
     const ts=segmentTimestampMatch(sentence,segments);
     return typeof item==="string"
       ? {text:item,...(ts||{})}
@@ -157,12 +183,23 @@ export function videoAnalyze(raw, { question = "", keyPointLimit = 10, chapterTa
   const claims = videoClaims(transcript);
   const actions = videoActionItems(transcript);
 
+  const durationMs = Array.isArray(segments) && segments.length
+    ? Math.max(...segments.map(s=>Number(s?.offset||0)+Number(s?.duration||0)))
+    : null;
+  const briefChars = brief?.summary?.length || 0;
   const result = {
     brief,
     key_points: {...kp, timed_points: withTimestamps(kp.points,segments)},
     chapters: {...chapters, chapters: withTimestamps(chapters.chapters,segments)},
     claims: {...claims, claims: withTimestamps(claims.claims,segments)},
     action_items: {...actions, action_items: withTimestamps(actions.action_items,segments)},
+    efficiency: {
+      transcript_chars: transcript.length,
+      brief_chars: briefChars,
+      compression_ratio: transcript.length ? Number((briefChars/transcript.length).toFixed(3)) : null,
+      duration_ms: durationMs,
+      duration_s: durationMs === null ? null : Number((durationMs/1000).toFixed(3))
+    }
   };
 
   if (typeof question === "string" && question.trim()) {
