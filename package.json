@@ -1,9 +1,9 @@
 {
   "name": "agent-product-normalizer",
-  "version": "0.7.7",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
-  "description": "x402-paid commerce utilities for AI agents with multi-surface discovery",
+  "description": "x402-paid agent utilities for video context, workflow compression, safety helpers and commerce normalization",
   "engines": {
     "node": ">=22"
   },

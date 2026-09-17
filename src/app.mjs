@@ -66,7 +66,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.7.7",
+    version: "0.8.0",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
@@ -126,24 +126,30 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   app.get("/", (_req, res) => res.json(catalog));
   app.get("/catalog", (_req, res) => res.json(catalog));
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.7.7" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.0" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
   app.get("/llms.txt", (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
-    res.type("text/plain").send(`# Agent Product Normalizer
+    res.type("text/plain").send(`# Agent Utility API — x402 microservices for autonomous agents
 
-Machine-first x402 commerce utilities for AI agents.
+Machine-first paid utilities for agent workflows: video context extraction, context compression, task cleanup, safety checks, workflow helpers and commerce normalization.
 
 Base URL: ${baseUrl}
 Payment: USDC on Base (eip155:8453)
 Pay-to: ${config.payTo}
 
-Paid services:
-- GET/POST /api/v1/normalize — ${config.prices.normalize} — normalize a public product page into agent-ready commerce JSON.
-- GET/POST /api/v1/extract-offer — ${config.prices.extractOffer} — extract compact price, currency, availability and seller facts.
-- GET/POST /api/v1/validate — ${config.prices.validate} — score whether product data is reliable enough for an agent.
-- GET/POST /api/v1/compare — ${config.prices.compare} — compare 2-5 product pages and return the cheapest offer per currency.
+Recommended video routes:
+- GET/POST /api/v1/video-analyze — ${config.prices.videoAnalyze} — URL → transcript → compact brief, key points, chapters, claims, action items, timestamped context pack, technical commands and optional Q&A. Designed to reduce the context an agent needs to read.
+- GET/POST /api/v1/video-transcript — ${config.prices.videoTranscript} — fetch timestamped YouTube transcript segments.
+- GET/POST /api/v1/video-brief — ${config.prices.videoBrief} — compact extractive brief from a supplied transcript.
+- GET/POST /api/v1/video-key-points — ${config.prices.videoKeyPoints} — select high-value transcript passages.
+- GET/POST /api/v1/video-answer-question — ${config.prices.videoAnswerQuestion} — extractive Q&A with evidence passages from a supplied transcript.
+- GET/POST /api/v1/video-chapters — ${config.prices.videoChapters} — split a transcript into topic-sized chapters.
+- GET/POST /api/v1/video-claims — ${config.prices.videoClaims} — identify candidate claims for later verification.
+- GET/POST /api/v1/video-action-items — ${config.prices.videoActionItems} — extract action-oriented passages.
+
+Agent workflow utilities:
 - GET/POST /api/v1/clarify — ${config.prices.clarify} — turn a messy human request into an execution-ready task.
 - GET/POST /api/v1/compress-context — ${config.prices.compressContext} — compress long agent context into compact operational state.
 - GET/POST /api/v1/should-ask-human — ${config.prices.shouldAskHuman} — decide whether to ask the human or safely infer and continue.
@@ -160,25 +166,31 @@ Paid services:
 - GET/POST /api/v1/handoff-diff — ${config.prices.handoffDiff} — report what changed between two agent states.
 - GET/POST /api/v1/choose-next-step — ${config.prices.chooseNextStep} — rank candidate next actions against current state.
 
+Commerce utilities:
+- GET/POST /api/v1/normalize — ${config.prices.normalize} — normalize a public product page into agent-ready commerce JSON.
+- GET/POST /api/v1/extract-offer — ${config.prices.extractOffer} — extract compact price, currency, availability and seller facts.
+- GET/POST /api/v1/validate — ${config.prices.validate} — score whether product data is reliable enough for an agent.
+- GET/POST /api/v1/compare — ${config.prices.compare} — compare 2-5 product pages and return the cheapest offer per currency.
+
 Discovery:
 - ${baseUrl}/catalog
 - ${baseUrl}/openapi.json
 - ${baseUrl}/.well-known/x402.json
 - ${baseUrl}/.well-known/agent-card.json
 - ${baseUrl}/.well-known/ai-plugin.json
+- ${baseUrl}/skill.md
 
 Human/browser tests:
 - ${baseUrl}/test-payment
-- ${baseUrl}/test-extract-offer
-- ${baseUrl}/test-validate
-- ${baseUrl}/test-compare
 - ${baseUrl}/test-clarify
 - ${baseUrl}/test-compress-context
-- ${baseUrl}/test-should-ask-human
-- ${baseUrl}/test-extract-constraints
-- ${baseUrl}/test-rank-results
 ${config.transcriptProviderApiKey ? `- ${baseUrl}/test-video-transcript\n- ${baseUrl}/test-video-analyze\n` : ""}
-This service is already listed through x402 Bazaar discovery after successful settlement.
+
+Notes for agent callers:
+- Video summaries/Q&A are extractive and deterministic, not a general-purpose semantic LLM.
+- video-analyze can reconstruct low-punctuation auto-captions from timestamped segments.
+- For technical tutorials, video-analyze may return timestamped technical_commands.
+- All paid routes return HTTP 402 until a valid x402 payment is supplied.
 `);
   });
 
@@ -187,7 +199,7 @@ This service is already listed through x402 Bazaar discovery after successful se
     res.json({
       x402Version: 2,
       name: "Agent Product Normalizer",
-      description: "Paid commerce-data utilities for autonomous agents.",
+      description: "x402-paid microservices for autonomous agents: video context extraction, workflow utilities, safety helpers and commerce normalization.",
       network: config.network,
       asset: "USDC",
       payTo: config.payTo,
@@ -207,8 +219,8 @@ This service is already listed through x402 Bazaar discovery after successful se
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     res.json({
       name: "Agent Product Normalizer",
-      description: "x402-paid friction-killing utilities for AI agents plus commerce normalization, validation and offer comparison.",
-      version: "0.7.7",
+      description: "x402-paid agent utilities for video context extraction, workflow compression, safety checks and structured commerce data.",
+      version: "0.8.0",
       url: baseUrl,
       capabilities: [
         "task-clarification",
@@ -226,6 +238,16 @@ This service is already listed through x402 Bazaar discovery after successful se
         "secret-redaction",
         "handoff-diff",
         "next-step-selection",
+        "youtube-transcript",
+        "video-context-extraction",
+        "video-briefing",
+        "video-key-points",
+        "video-chapters",
+        "video-evidence-qa",
+        "video-claim-extraction",
+        "video-action-extraction",
+        "technical-command-extraction",
+        "timestamped-context-pack",
         "product-page-normalization",
         "offer-extraction",
         "product-data-validation",
@@ -254,8 +276,8 @@ This service is already listed through x402 Bazaar discovery after successful se
       schema_version: "v1",
       name_for_human: "Agent Product Normalizer",
       name_for_model: "agent_product_normalizer",
-      description_for_human: "Paid micro-utilities that reduce agent friction plus commerce-data tools.",
-      description_for_model: "Use this service to clarify messy human requests, compress context, decide whether to ask the human, extract constraints, rank search results, normalize product pages, extract offers, validate product data, or compare offers. Endpoints use x402 payments in USDC on Base.",
+      description_for_human: "Paid agent utilities for video context, workflow compression, safety checks and structured commerce data.",
+      description_for_model: "Use this x402 service when an agent needs compact video context from a YouTube URL, timestamped transcript segments, key passages, chapters, candidate claims, action items, technical commands, or extractive evidence Q&A. It also provides task clarification, context compression, safety/workflow helpers and commerce normalization. Payments are USDC on Base.",
       auth: { type: "none" },
       api: {
         type: "openapi",
@@ -263,31 +285,81 @@ This service is already listed through x402 Bazaar discovery after successful se
         is_user_authenticated: false,
       },
       logo_url: `${baseUrl}/favicon.ico`,
-      contact_email: "noreply@example.com",
       legal_info_url: baseUrl,
     });
   });
 
   app.get("/skill.md", (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
-    res.type("text/markdown").send(`# Agent Product Normalizer Skill
+    res.type("text/markdown").send(`# Agent Utility API Skill
 
-Use this service when you want to remove low-value agent reasoning steps or need reliable structured commerce facts.
+Use this service to outsource small deterministic steps that would otherwise consume agent context, browsing time or tool-call logic.
 
-## Choose a tool
-- Clarify a messy human task: \`GET ${baseUrl}/api/v1/clarify?text=<TEXT>\`
-- Compress long agent context: \`GET ${baseUrl}/api/v1/compress-context?context=<TEXT>\`
-- Decide whether to ask the human: \`GET ${baseUrl}/api/v1/should-ask-human?task=<TEXT>\`
-- Extract hard/soft constraints: \`GET ${baseUrl}/api/v1/extract-constraints?text=<TEXT>\`
-- Rank search results: prefer \`POST ${baseUrl}/api/v1/rank-results\` with JSON results.
-- Normalize one product: \`GET ${baseUrl}/api/v1/normalize?url=<URL>\`
-- Extract compact offer facts: \`GET ${baseUrl}/api/v1/extract-offer?url=<URL>\`
-- Validate whether a page is agent-usable: \`GET ${baseUrl}/api/v1/validate?url=<URL>\`
-- Compare 2-5 offers: repeat the \`url\` query parameter on \`GET ${baseUrl}/api/v1/compare\`
+## Best video route
 
-All paid routes return HTTP 402 until the caller supplies a valid x402 payment.
-Payment network: Base.
+\`GET/POST ${baseUrl}/api/v1/video-analyze\`
+
+Input:
+- \`url\`: public YouTube URL
+- optional \`question\`
+- optional \`lang\`
+- optional \`key_point_limit\`
+- optional \`chapter_target\`
+
+Returns:
+- timestamped source metadata
+- compact extractive brief
+- key points with timestamps
+- chapters
+- candidate claims
+- action items
+- \`context_pack\` for downstream models
+- \`technical_commands\` when recognizable in tutorials
+- optional evidence-based answer
+- compression/duration metrics
+- segmentation diagnostics for low-punctuation auto-captions
+
+Use this route when the caller does not want to ingest the full video transcript.
+
+## Other video routes
+- Transcript only: \`${baseUrl}/api/v1/video-transcript\`
+- Brief only: \`${baseUrl}/api/v1/video-brief\`
+- Key points: \`${baseUrl}/api/v1/video-key-points\`
+- Evidence Q&A: \`${baseUrl}/api/v1/video-answer-question\`
+- Chapters: \`${baseUrl}/api/v1/video-chapters\`
+- Claims: \`${baseUrl}/api/v1/video-claims\`
+- Action items: \`${baseUrl}/api/v1/video-action-items\`
+
+## Workflow routes
+- Clarify messy task: \`${baseUrl}/api/v1/clarify\`
+- Compress context: \`${baseUrl}/api/v1/compress-context\`
+- Decide whether to ask human: \`${baseUrl}/api/v1/should-ask-human\`
+- Extract constraints: \`${baseUrl}/api/v1/extract-constraints\`
+- Rank search results: \`${baseUrl}/api/v1/rank-results\`
+- Dedupe facts: \`${baseUrl}/api/v1/dedupe-facts\`
+- Detect conflicts: \`${baseUrl}/api/v1/detect-conflicts\`
+- Extract actions: \`${baseUrl}/api/v1/extract-actions\`
+- Build search queries: \`${baseUrl}/api/v1/make-search-query\`
+- Check missing fields: \`${baseUrl}/api/v1/missing-fields\`
+- Retry decision: \`${baseUrl}/api/v1/retry-decision\`
+- Prompt-injection scan: \`${baseUrl}/api/v1/prompt-injection-scan\`
+- Redact secrets: \`${baseUrl}/api/v1/redact-secrets\`
+- Handoff diff: \`${baseUrl}/api/v1/handoff-diff\`
+- Choose next step: \`${baseUrl}/api/v1/choose-next-step\`
+
+## Commerce routes
+- Normalize product page: \`${baseUrl}/api/v1/normalize\`
+- Extract offer: \`${baseUrl}/api/v1/extract-offer\`
+- Validate product data: \`${baseUrl}/api/v1/validate\`
+- Compare offers: \`${baseUrl}/api/v1/compare\`
+
+## Payment
+All paid routes use x402.
+Network: Base.
 Asset: USDC.
+
+## Important behavior
+Video analysis is extractive/deterministic. Treat returned claims as candidates for verification, not verified facts. For final semantic synthesis, a caller may pass the compact \`context_pack\` into its own model.
 `);
   });
 
@@ -574,8 +646,8 @@ Asset: USDC.
       "GET /api/v1/video-action-items": { accepts: accepts(config.prices.videoActionItems), description: "Extract concrete action items from video transcript", mimeType: "application/json", serviceName: "Agent Video Action Items", tags: ["agents","video","actions","workflow"], extensions: videoActionItemsBrowserDiscovery },
       "POST /api/v1/video-action-items": { accepts: accepts(config.prices.videoActionItems), description: "Extract concrete action items from video transcript", mimeType: "application/json", serviceName: "Agent Video Action Items", tags: ["agents","video","actions","workflow"], extensions: videoActionItemsDiscovery },
       ...(config.transcriptProviderApiKey ? {
-        "GET /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Fetch one YouTube transcript and return a compact all-in-one analysis for agents", mimeType: "application/json", serviceName: "Agent Video Analyze", tags: ["agents","youtube","video","summary","research","q&a"], extensions: videoAnalyzeBrowserDiscovery },
-        "POST /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Fetch one YouTube transcript and return a compact all-in-one analysis for agents", mimeType: "application/json", serviceName: "Agent Video Analyze", tags: ["agents","youtube","video","summary","research","q&a"], extensions: videoAnalyzeDiscovery },
+        "GET /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Convert a YouTube URL into compact timestamped agent context: brief, key points, chapters, claims, actions, technical commands, context pack and optional evidence Q&A", mimeType: "application/json", serviceName: "Agent Video Analyze", tags: ["agents","youtube","video","summary","research","q&a"], extensions: videoAnalyzeBrowserDiscovery },
+        "POST /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Convert a YouTube URL into compact timestamped agent context: brief, key points, chapters, claims, actions, technical commands, context pack and optional evidence Q&A", mimeType: "application/json", serviceName: "Agent Video Analyze", tags: ["agents","youtube","video","summary","research","q&a"], extensions: videoAnalyzeDiscovery },
       } : {}),
     }, resourceServer, {
       appName: "Agent Product Normalizer",
