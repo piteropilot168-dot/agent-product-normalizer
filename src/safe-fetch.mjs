@@ -14,9 +14,10 @@ function isPrivateIp(ip) {
   if (!net.isIP(ip)) return false;
   if (ip.startsWith("10.") || ip.startsWith("127.") || ip.startsWith("192.168.")) return true;
   if (ip.startsWith("169.254.")) return true;
+  if (ip === "0.0.0.0" || ip === "255.255.255.255") return true;
   const m = ip.match(/^172\.(\d+)\./);
   if (m && Number(m[1]) >= 16 && Number(m[1]) <= 31) return true;
-  if (ip === "::1" || ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80:")) return true;
+  if (ip === "::" || ip === "::1" || ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80:")) return true;
   return false;
 }
 
@@ -24,6 +25,7 @@ async function assertPublicUrl(rawUrl) {
   let url;
   try { url = new URL(rawUrl); } catch { throw new InputError("url must be a valid absolute URL"); }
   if (!["http:", "https:"].includes(url.protocol)) throw new InputError("only HTTP(S) URLs are allowed");
+  if (url.username || url.password) throw new InputError("URLs with embedded credentials are not allowed");
   const records = await dns.lookup(url.hostname, { all: true });
   if (!records.length || records.some(r => isPrivateIp(r.address))) {
     throw new InputError("private or local network targets are not allowed");
@@ -31,20 +33,29 @@ async function assertPublicUrl(rawUrl) {
   return url;
 }
 
-export async function safeFetchHtml(rawUrl, { timeoutMs = 8000, maxBytes = 2_000_000 } = {}) {
-  const url = await assertPublicUrl(rawUrl);
+export async function safeFetchHtml(rawUrl, { timeoutMs = 8000, maxBytes = 2_000_000, maxRedirects = 5 } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, {
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "user-agent": "Mozilla/5.0 AgentProductNormalizer/0.2",
-        "accept": "text/html,application/xhtml+xml"
-      }
-    });
-    if (!response.ok) throw new InputError(`upstream returned HTTP ${response.status}`, 422, "UPSTREAM_HTTP_ERROR");
+    let url = await assertPublicUrl(rawUrl);
+    let response;
+    for (let hop = 0; hop <= maxRedirects; hop += 1) {
+      response = await fetch(url, {
+        redirect: "manual",
+        signal: controller.signal,
+        headers: {
+          "user-agent": "Mozilla/5.0 AgentProductNormalizer/0.5",
+          "accept": "text/html,application/xhtml+xml"
+        }
+      });
+      if (![301, 302, 303, 307, 308].includes(response.status)) break;
+      if (hop === maxRedirects) throw new InputError("too many redirects", 422, "TOO_MANY_REDIRECTS");
+      const location = response.headers.get("location");
+      if (!location) throw new InputError("redirect response had no location", 422, "INVALID_REDIRECT");
+      url = await assertPublicUrl(new URL(location, url).href);
+    }
+
+    if (!response?.ok) throw new InputError(`upstream returned HTTP ${response?.status ?? "unknown"}`, 422, "UPSTREAM_HTTP_ERROR");
     const type = response.headers.get("content-type") || "";
     if (!type.includes("text/html") && !type.includes("application/xhtml+xml")) {
       throw new InputError("URL did not return HTML", 422, "NOT_HTML");

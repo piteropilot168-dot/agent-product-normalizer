@@ -7,7 +7,12 @@ export const config = {
     normalize: process.env.X402_PRICE_NORMALIZE || process.env.X402_PRICE || "$0.01",
     extractOffer: process.env.X402_PRICE_EXTRACT_OFFER || "$0.01",
     validate: process.env.X402_PRICE_VALIDATE || "$0.02",
-    compare: process.env.X402_PRICE_COMPARE || "$0.05"
+    compare: process.env.X402_PRICE_COMPARE || "$0.05",
+    clarify: process.env.X402_PRICE_CLARIFY || "$0.005",
+    compressContext: process.env.X402_PRICE_COMPRESS_CONTEXT || "$0.005",
+    shouldAskHuman: process.env.X402_PRICE_SHOULD_ASK_HUMAN || "$0.003",
+    extractConstraints: process.env.X402_PRICE_EXTRACT_CONSTRAINTS || "$0.003",
+    rankResults: process.env.X402_PRICE_RANK_RESULTS || "$0.005"
   },
   facilitatorUrl: process.env.X402_FACILITATOR_URL || "https://facilitator.payai.network",
   fetchTimeoutMs: Number(process.env.FETCH_TIMEOUT_MS || 8000),

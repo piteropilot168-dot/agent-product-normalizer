@@ -1,6 +1,6 @@
 {
   "name": "agent-product-normalizer",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "description": "x402-paid commerce utilities for AI agents with multi-surface discovery",
@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "node --watch server.mjs",
     "start": "node server.mjs",
-    "check": "node --check api/index.mjs && node --check src/app.mjs && node --check src/normalize.mjs && node --check src/safe-fetch.mjs && node --check src/services.mjs"
+    "check": "node --check api/index.mjs && node --check src/app.mjs && node --check src/normalize.mjs && node --check src/safe-fetch.mjs && node --check src/services.mjs && node --check src/friction.mjs && node --check src/discovery.mjs && node --check src/openapi.mjs"
   },
   "dependencies": {
     "@x402/core": "2.26.0",

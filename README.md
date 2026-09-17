@@ -1,67 +1,54 @@
-# Agent Product Normalizer
+# Agent Product Normalizer + Friction API v0.5
 
-Machine-first x402 commerce utilities for AI agents.
+Machine-first x402 micro-utilities for AI agents.
 
-**Live API:** https://agent-product-normalizer.vercel.app
+Live production origin after deployment:
+`https://agent-product-normalizer.vercel.app`
 
-## Services
+## Friction-killer endpoints
 
-| Service | Method | Path | Price |
-|---|---|---|---:|
-| Normalize product page | GET / POST | `/api/v1/normalize` | $0.01 |
-| Extract compact offer | GET / POST | `/api/v1/extract-offer` | $0.01 |
-| Validate product data | GET / POST | `/api/v1/validate` | $0.02 |
-| Compare 2–5 offers | GET / POST | `/api/v1/compare` | $0.05 |
+| Service | Path | Price |
+|---|---|---:|
+| Task Clarifier | `/api/v1/clarify` | $0.005 |
+| Context Compressor | `/api/v1/compress-context` | $0.005 |
+| Should I Ask The Human? | `/api/v1/should-ask-human` | $0.003 |
+| Constraint Extractor | `/api/v1/extract-constraints` | $0.003 |
+| Search Result Judge | `/api/v1/rank-results` | $0.005 |
 
-Payments use **x402**, **USDC**, **Base (eip155:8453)**.
+These endpoints are designed to remove repetitive low-value reasoning steps from agent workflows: cleaning messy human intent, deciding whether clarification is necessary, compressing context for handoffs, extracting constraints and ranking search results.
+
+## Commerce endpoints
+
+| Service | Path | Price |
+|---|---|---:|
+| Product Normalizer | `/api/v1/normalize` | $0.01 |
+| Offer Extractor | `/api/v1/extract-offer` | $0.01 |
+| Product Validator | `/api/v1/validate` | $0.02 |
+| Offer Comparator | `/api/v1/compare` | $0.05 |
+
+All paid routes support GET and POST and use x402 with USDC on Base.
 
 ## Discovery
 
-- `https://agent-product-normalizer.vercel.app/catalog`
-- `https://agent-product-normalizer.vercel.app/openapi.json`
-- `https://agent-product-normalizer.vercel.app/llms.txt`
-- `https://agent-product-normalizer.vercel.app/.well-known/x402.json`
-- `https://agent-product-normalizer.vercel.app/.well-known/agent-card.json`
-- `https://agent-product-normalizer.vercel.app/skill.md`
+- `/catalog`
+- `/openapi.json`
+- `/llms.txt`
+- `/.well-known/x402.json`
+- `/.well-known/agent-card.json`
+- `/.well-known/ai-plugin.json`
+- `/skill.md`
 
-## Example: normalize one product
+## Browser settlement tests
 
-```http
-GET /api/v1/normalize?url=https%3A%2F%2Fexample.com%2Fproduct
-Host: agent-product-normalizer.vercel.app
-```
-
-The first unpaid call returns **HTTP 402** with payment requirements. An x402-capable agent can satisfy the payment and retry automatically.
-
-## Example response
-
-```json
-{
-  "schema_version": "2026-09-01",
-  "product": {
-    "name": "Example product",
-    "brand": "Example brand"
-  },
-  "offer": {
-    "price": "49.90",
-    "currency": "EUR",
-    "availability": "in_stock"
-  },
-  "quality": {
-    "confidence": 0.95,
-    "grade": "high",
-    "primary_source": "json_ld",
-    "warnings": []
-  }
-}
-```
-
-## Example: compare offers
-
-```http
-GET /api/v1/compare?url=https%3A%2F%2Fmerchant-a.example%2Fp%2F123&url=https%3A%2F%2Fmerchant-b.example%2Fp%2F123
-Host: agent-product-normalizer.vercel.app
-```
+- `/test-payment`
+- `/test-extract-offer`
+- `/test-validate`
+- `/test-compare`
+- `/test-clarify`
+- `/test-compress-context`
+- `/test-should-ask-human`
+- `/test-extract-constraints`
+- `/test-rank-results`
 
 ## Payment
 
@@ -73,14 +60,9 @@ Asset: USDC
 Pay-to: 0x74eCCC9bEC502d9Eb390bF15198A234447Dc59F8
 ```
 
-## Browser test routes
+## Security hardening in v0.5
 
-These routes are intended only for manual testing with a browser wallet:
-
-- `/test-payment`
-- `/test-extract-offer`
-- `/test-validate`
-- `/test-compare`
+The product-page fetcher now validates every redirect target before following it, rather than validating only the initial URL. This reduces SSRF risk from redirects to private/local network targets.
 
 ## Local development
 
@@ -91,20 +73,14 @@ npm install
 npm start
 ```
 
-Default local port: `3000`.
-
-## Health
+Health check:
 
 ```http
 GET /health
 ```
 
-Current production version:
+Expected version after deployment:
 
 ```json
-{"ok":true,"version":"0.4.0"}
+{"ok":true,"version":"0.5.0"}
 ```
-
-## Why this exists
-
-Commerce agents repeatedly need the same low-level work: parse inconsistent product pages, extract a trustworthy offer, assess data quality, and compare multiple sellers. This API exposes those tasks as small, pay-per-request primitives that agents can call without API keys or subscriptions.
