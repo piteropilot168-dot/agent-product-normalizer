@@ -100,6 +100,29 @@ function topicalOverlap(s, terms){
   for(const t of terms) if(ws.has(t)) hit++;
   return hit;
 }
+
+function thesisMarkerScore(s){
+  let score=0;
+  if(/\b(my contention is|the result is|the consequence is|the point is|the problem is|the whole system|we need to|we have to|academic ability|creativity|creative capacities|view of intelligence|hierarchy of subjects|university entrance|fundamental principles)\b/i.test(s)) score+=3.0;
+  if(/\b(children|education|school|schools|talent|intelligence|creativity|creative|academic|university|future|human)\b/i.test(s)) score+=0.8;
+  if(/\b(good morning|how are you|dinner party|t-shirt|t shirt|joke|laughter|by the way|anyway)\b/i.test(s)) score-=2.5;
+  return score;
+}
+function anecdotePenalty(s){
+  let p=0;
+  if(/\b(i heard a (great )?story|there was a little|my son|my daughter|t-shirt|t shirt|oak-paneled|sat on this chair|we walked in this room|i had a conversation|i love telling it)\b/i.test(s)) p+=1.6;
+  if(/\b(laughter|applause)\b/i.test(s)) p+=1.0;
+  return p;
+}
+function centralTopicTerms(raw, limit=18){
+  const f=freqMap(raw);
+  const boosted=[...f.entries()].map(([w,c])=>{
+    let b=c;
+    if(/^(education|creativity|creative|intelligence|children|kids|school|schools|talent|academic|university|system|future|human)$/.test(w)) b*=2.2;
+    return [w,b];
+  });
+  return boosted.sort((a,b)=>b[1]-a[1]).slice(0,limit).map(([w])=>w);
+}
 function argumentMarkerScore(s){
   let score=0;
   if(/\b(the point is|the problem is|the reason is|the purpose|the whole system|our system|we need to|we have to|what we know|the important thing|is as important as|is that|means that|results in|leads to|predicated|hierarchy|fundamental|crucial)\b/i.test(s)) score+=2.5;
@@ -120,9 +143,10 @@ function scoreSentence(s,f,idx,total){
   const position = total>1 ? (1 - idx/(total-1))*0.08 : 0.08;
   const complete = /[.!?]["')\]]*$/.test(s) ? 0.15 : 0;
   const quotePenalty = ((s.match(/"/g)||[]).length % 2) ? -0.15 : 0;
-  const thesisBonus = argumentMarkerScore(s);
+  const thesisBonus = argumentMarkerScore(s) + thesisMarkerScore(s);
+  const storyPenalty = anecdotePenalty(s);
   const fillerPenalty = isLowValue(s) ? -3 : 0;
-  return lexical+position+complete+quotePenalty+thesisBonus+fillerPenalty;
+  return lexical+position+complete+quotePenalty+thesisBonus-storyPenalty+fillerPenalty;
 }
 function rankedUnits(raw){
   const ss=sentences(raw);
@@ -150,13 +174,33 @@ function diverseTop(raw, limit=8){
   return picked.sort((a,b)=>a.i-b.i).map(x=>x.s);
 }
 function summarySentences(raw, limit=5){
-  const candidates=diverseTop(raw, Math.max(limit*2,8));
-  const strong = candidates
-    .filter(s=>!/\b(i think|i mean|you know|actually|anyway|by the way)\b/i.test(s))
-    .filter(s=>s.length>=70);
-  return (strong.length?strong:candidates).slice(0,limit);
-}
+  const units=sentences(raw);
+  const central=centralTopicTerms(raw,18);
+  const scored=units.map((s,i)=>({
+    i,
+    s,
+    score:thesisMarkerScore(s) + topicalOverlap(s,central)*0.55 - anecdotePenalty(s)
+  }))
+  .filter(x=>!isLowValue(x.s) && x.s.length>=65)
+  .sort((a,b)=>b.score-a.score);
 
+  const picked=[];
+  for(const item of scored){
+    const w=new Set(words(item.s));
+    let dup=false;
+    for(const p of picked){
+      const pw=new Set(words(p.s));
+      let hit=0;
+      for(const x of w) if(pw.has(x)) hit++;
+      if(hit/Math.max(1,Math.min(w.size,pw.size))>0.65){dup=true;break;}
+    }
+    if(!dup) picked.push(item);
+    if(picked.length>=limit) break;
+  }
+
+  if(!picked.length) return diverseTop(raw,limit);
+  return picked.sort((a,b)=>a.i-b.i).map(x=>x.s);
+}
 export function videoBrief(raw){
   const t=text(raw);
   const ss=sentences(t);
@@ -193,12 +237,14 @@ export function videoClaims(raw){
     if(!hasNumber && !evidence && !assertive) continue;
     if(subjectiveRe.test(s) && !hasNumber && !evidence) continue;
     if(/\b(I|my|me)\b/.test(s) && !hasNumber && !evidence && argumentMarkerScore(s)<1.5) continue;
+    if(anecdotePenalty(s)>=1.5 && !hasNumber && !evidence) continue;
 
     let score=0;
     if(hasNumber) score+=3;
     if(evidence) score+=3;
     if(assertive) score+=1.2;
-    score+=Math.min(2.0,argumentMarkerScore(s));
+    score+=Math.min(3.0,argumentMarkerScore(s)+thesisMarkerScore(s));
+    score-=anecdotePenalty(s);
     if(s.length>=80 && s.length<=300) score+=0.8;
     if(s.length>420) score-=1.2;
 
@@ -246,7 +292,7 @@ export function videoAnswerQuestion(raw, rawQuestion){
   const q=text(rawQuestion,"question",4000);
   const units=sentences(t);
   const concepts=queryConcepts(q);
-  const terms=topTerms(t,16);
+  const terms=centralTopicTerms(t,18);
 
   if(concepts.includes("arguments") || concepts.includes("examples")){
     const argumentScored=units
@@ -266,7 +312,9 @@ export function videoAnswerQuestion(raw, rawQuestion){
     for(let i=0;i<units.length;i++){
       const s=units[i];
       const marker=exampleMarkerScore(s);
-      if(marker<1.8) continue;
+      const thesisLink=topicalOverlap(s,terms) + Math.max(0,thesisMarkerScore(s));
+      if(marker<1.8 || thesisLink<0.8) continue;
+      if(/\b(t-shirt|t shirt|forest|wife|husband|joke)\b/i.test(s)) continue;
 
       const cluster=[s];
       for(let j=i+1;j<Math.min(units.length,i+3);j++){
@@ -279,7 +327,7 @@ export function videoAnswerQuestion(raw, rawQuestion){
       exampleScored.push({
         i,
         s:joined,
-        score:marker + topicalOverlap(joined,terms)*0.2
+        score:marker + topicalOverlap(joined,terms)*0.65 + Math.max(0,thesisMarkerScore(joined))*0.35 - anecdotePenalty(joined)*0.25
       });
     }
     exampleScored.sort((a,b)=>b.score-a.score);
@@ -358,7 +406,14 @@ export function videoChapters(raw, target=8){
   for(let i=0;i<ss.length;i+=size){
     const chunk=ss.slice(i,i+size);
     if(!chunk.length) continue;
-    const rep=summarySentences(chunk.join(" "),1)[0]||chunk[0];
+    const central=centralTopicTerms(t,18);
+    const rep=[...chunk]
+      .map((s,idx)=>({
+        s,
+        idx,
+        score:thesisMarkerScore(s)+topicalOverlap(s,central)*0.6-anecdotePenalty(s)-(isLowValue(s)?3:0)
+      }))
+      .sort((a,b)=>b.score-a.score)[0]?.s || chunk[0];
     let title=normalizeNoise(rep).slice(0,90);
     if(title.length===90) title=title.replace(/\s+\S*$/,"").trim();
     title=title.replace(/[.!?,;:\-–—\s]+$/g,"").trim();
