@@ -76,6 +76,126 @@ function coherentUnits(raw){
 function sentences(v){ return coherentUnits(v); }
 
 
+
+function ensureTerminalPunctuation(s){
+  const t=normalizeNoise(s);
+  if(!t) return "";
+  return /[.!?]["')\]]*$/.test(t) ? t : `${t}.`;
+}
+
+function analysisTextFromSegments(raw, segments=[]){
+  const original=text(raw);
+  const baseUnits=sentences(original);
+  const needsRebuild =
+    original.length > 4000 &&
+    Array.isArray(segments) &&
+    segments.length >= 20 &&
+    (baseUnits.length < 12 || (original.length / Math.max(1,baseUnits.length)) > 900);
+
+  if(!needsRebuild){
+    return {
+      text: original,
+      mode: "transcript-punctuation",
+      source_segments: Array.isArray(segments)?segments.length:0,
+      analysis_units: baseUnits.length
+    };
+  }
+
+  const groups=[];
+  let buf=[];
+  let chars=0;
+  let startOffset=null;
+
+  const flush=()=>{
+    if(!buf.length) return;
+    const joined=normalizeNoise(buf.join(" "));
+    if(joined){
+      groups.push({
+        text:ensureTerminalPunctuation(joined),
+        offset:startOffset
+      });
+    }
+    buf=[];
+    chars=0;
+    startOffset=null;
+  };
+
+  for(const seg of segments){
+    const st=normalizeNoise(seg?.text||"");
+    if(!st) continue;
+    if(startOffset===null) startOffset=Number(seg?.offset||0);
+    buf.push(st);
+    chars += st.length + 1;
+
+    const naturalEnd=/[.!?]["')\]]*$/.test(st);
+    if((naturalEnd && chars>=90) || chars>=240 || buf.length>=6) flush();
+  }
+  flush();
+
+  const rebuilt=groups.map(g=>g.text).join(" ");
+  return {
+    text:rebuilt || original,
+    mode:"segment-reconstruction",
+    source_segments:segments.length,
+    analysis_units:groups.length,
+    groups
+  };
+}
+
+function scriptProfile(s){
+  const sample=String(s||"");
+  const latin=(sample.match(/[A-Za-zÀ-ÖØ-öø-ÿĄĆĘŁŃÓŚŹŻąćęłńóśźż]/g)||[]).length;
+  const cyr=(sample.match(/[А-Яа-яЁё]/g)||[]).length;
+  const total=latin+cyr;
+  if(!total) return "unknown";
+  if(cyr/total>0.65) return "cyrillic";
+  if(latin/total>0.65) return "latin";
+  return "mixed";
+}
+
+function technicalCommands(raw, segments=[]){
+  const sources = Array.isArray(segments) && segments.length
+    ? segments.map(s=>({text:normalizeNoise(s?.text||""),offset:Number(s?.offset||0)})).filter(x=>x.text)
+    : sentences(raw).map((s,i)=>({text:s,offset:null,index:i}));
+
+  const patterns=[
+    {name:"docker -v", re:/\b(?:docker|dock|докер)\s+(?:-v|v)\b/i},
+    {name:"docker run", re:/\b(?:docker|dock|докер)\s+run\b/i},
+    {name:"docker ps -a", re:/\b(?:docker|dock|докер)\s+ps\b[^.!?\n]{0,24}(?:\s-a\b|\bminus\s+a\b|\bминус\s+[аa]\b)/i},
+    {name:"docker ps", re:/\b(?:docker|dock|докер)\s+ps\b/i},
+    {name:"docker images", re:/\b(?:docker|dock|докер)\s+images?\b/i},
+    {name:"docker build", re:/\b(?:docker|dock|докер)\s+build\b/i},
+    {name:"docker stop", re:/\b(?:docker|dock|докер)\s+stop\b/i},
+    {name:"docker start", re:/\b(?:docker|dock|докер)\s+start\b/i},
+    {name:"docker attach", re:/\b(?:docker|dock|докер)\s+attach\b/i},
+    {name:"exit", re:/\bexit\b/i},
+    {name:"FROM", re:/\b(?:dockerfile|docker file|докер\s*файл)[^.!?\n]{0,160}\bfrom\b/i},
+    {name:"WORKDIR", re:/\b(?:dockerfile|docker file|докер\s*файл)[^.!?\n]{0,160}\b(?:workdir|work\s+dir)\b/i},
+    {name:"COPY", re:/\b(?:dockerfile|docker file|докер\s*файл)[^.!?\n]{0,160}\bcopy\b/i},
+    {name:"RUN", re:/\b(?:dockerfile|docker file|докер\s*файл)[^.!?\n]{0,160}\brun\b/i},
+    {name:"CMD", re:/\b(?:dockerfile|docker file|докер\s*файл)[^.!?\n]{0,160}\bcmd\b/i},
+  ];
+
+  const found=[];
+  const seen=new Set();
+  for(const source of sources){
+    for(const p of patterns){
+      if(seen.has(p.name)) continue;
+      if(p.re.test(source.text)){
+        seen.add(p.name);
+        found.push({
+          command:p.name,
+          source_text:source.text.slice(0,260),
+          ...(source.offset===null?{}:{
+            timestamp_ms:source.offset,
+            timestamp_s:Number((source.offset/1000).toFixed(3))
+          })
+        });
+      }
+    }
+  }
+  return found.slice(0,18);
+}
 function isLowValue(s){
   const t=normalizeNoise(s);
   const low=t.toLowerCase();
@@ -278,6 +398,7 @@ function queryConcepts(q){
   if(/\b(argument|arguments|claim|claims|point|points|thesis)\b/.test(raw)) concepts.push("arguments");
   if(/\b(example|examples|story|stories|anecdote|anecdotes)\b/.test(raw)) concepts.push("examples");
   if(/\b(about|summary|summarize|overview)\b/.test(raw)) concepts.push("summary");
+  if(/\b(step|steps|command|commands|workflow|how to|start using|setup|install|run|build)\b/.test(raw)) concepts.push("tutorial");
   return concepts;
 }
 function likelyExample(s){
@@ -293,6 +414,25 @@ export function videoAnswerQuestion(raw, rawQuestion){
   const units=sentences(t);
   const concepts=queryConcepts(q);
   const terms=centralTopicTerms(t,18);
+
+  if(concepts.includes("tutorial")){
+    const cmds=technicalCommands(t);
+    if(cmds.length){
+      return {
+        question:q,
+        answer:`Key command sequence detected in the tutorial: ${cmds.map(x=>x.command).join("; ")}.`,
+        evidence:cmds.slice(0,8).map(x=>x.source_text),
+        confidence:0.82,
+        mode:"technical-command-extract",
+        commands:cmds
+      };
+    }
+  }
+
+  const qScript=scriptProfile(q);
+  const tScript=scriptProfile(t);
+  const scriptMismatch=qScript!=="unknown" && tScript!=="unknown" &&
+    qScript!==tScript && qScript!=="mixed" && tScript!=="mixed";
 
   if(concepts.includes("arguments") || concepts.includes("examples")){
     const argumentScored=units
@@ -364,6 +504,19 @@ export function videoAnswerQuestion(raw, rawQuestion){
   if(concepts.includes("summary")){
     const b=videoBrief(t);
     return {question:q,answer:b.summary,evidence:b.key_points.slice(0,5),confidence:0.72,mode:"summary-fallback"};
+  }
+
+  if(scriptMismatch){
+    const b=videoBrief(t);
+    return {
+      question:q,
+      answer:"Transcript language differs from the question language. Returning compact source-language context instead of a low-quality lexical answer.",
+      evidence:b.key_points.slice(0,5),
+      confidence:0.35,
+      mode:"language-mismatch-context",
+      transcript_script:tScript,
+      question_script:qScript
+    };
   }
 
   const qWords=new Set(words(q));
@@ -453,11 +606,14 @@ function withTimestamps(items, segments=[]){
 }
 export function videoAnalyze(raw, { question = "", keyPointLimit = 10, chapterTarget = 8, segments = [] } = {}) {
   const transcript = text(raw);
-  const brief = videoBrief(transcript);
-  const kp = videoKeyPoints(transcript, keyPointLimit);
-  const chapters = videoChapters(transcript, chapterTarget);
-  const claims = videoClaims(transcript);
-  const actions = videoActionItems(transcript);
+  const prepared = analysisTextFromSegments(transcript,segments);
+  const analysisText = prepared.text;
+  const brief = videoBrief(analysisText);
+  const kp = videoKeyPoints(analysisText, keyPointLimit);
+  const chapters = videoChapters(analysisText, chapterTarget);
+  const claims = videoClaims(analysisText);
+  const actions = videoActionItems(analysisText);
+  const commands = technicalCommands(transcript,segments);
 
   const durationMs = Array.isArray(segments) && segments.length
     ? Math.max(...segments.map(s=>Number(s?.offset||0)+Number(s?.duration||0)))
@@ -470,6 +626,15 @@ export function videoAnalyze(raw, { question = "", keyPointLimit = 10, chapterTa
     chapters: {...chapters, chapters: withTimestamps(chapters.chapters,segments)},
     claims: {...claims, claims: withTimestamps(claims.claims,segments)},
     action_items: {...actions, action_items: withTimestamps(actions.action_items,segments)},
+    segmentation: {
+      mode:prepared.mode,
+      source_segments:prepared.source_segments,
+      analysis_units:prepared.analysis_units
+    },
+    technical_commands: {
+      count:commands.length,
+      commands
+    },
     context_pack: {
       purpose: "extractive model-ready context",
       items: withTimestamps(
@@ -490,7 +655,16 @@ export function videoAnalyze(raw, { question = "", keyPointLimit = 10, chapterTa
   };
 
   if (typeof question === "string" && question.trim()) {
-    const answer = videoAnswerQuestion(transcript, question);
+    let answer = videoAnswerQuestion(analysisText, question);
+    if(answer?.mode==="technical-command-extract" && commands.length){
+      const evidence=[...new Set(commands.map(x=>x.source_text).filter(Boolean))].slice(0,8);
+      answer={
+        ...answer,
+        answer:`Key command sequence detected in the tutorial: ${commands.map(x=>x.command).join("; ")}.`,
+        evidence,
+        commands
+      };
+    }
     result.answer = {...answer, timed_evidence: withTimestamps(answer.evidence||[],segments)};
   }
   return result;

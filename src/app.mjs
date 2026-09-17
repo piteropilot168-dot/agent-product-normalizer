@@ -66,7 +66,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.7.6",
+    version: "0.7.7",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
@@ -126,7 +126,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   app.get("/", (_req, res) => res.json(catalog));
   app.get("/catalog", (_req, res) => res.json(catalog));
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.7.6" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.7.7" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
   app.get("/llms.txt", (req, res) => {
@@ -208,7 +208,7 @@ This service is already listed through x402 Bazaar discovery after successful se
     res.json({
       name: "Agent Product Normalizer",
       description: "x402-paid friction-killing utilities for AI agents plus commerce normalization, validation and offer comparison.",
-      version: "0.7.6",
+      version: "0.7.7",
       url: baseUrl,
       capabilities: [
         "task-clarification",
