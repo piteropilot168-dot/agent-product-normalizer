@@ -38,60 +38,97 @@ function isFragment(s){
 }
 function coherentUnits(raw){
   const cleaned = text(raw)
-    .replace(/\r/g,"\n")
-    .replace(/\n+/g," ")
+    .replace(/\r?\n+/g," ")
     .replace(/\s+/g," ")
     .trim();
 
-  const rough = cleaned
-    .split(/(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-ÞĄĆĘŁŃÓŚŹŻÄÖÜÉÈÊÁÍÓÚÑ])/u)
+  // Split on real sentence punctuation regardless of capitalization.
+  // Subtitle providers often start the next sentence with lowercase text,
+  // so requiring an uppercase next token collapses long videos into giant blocks.
+  const rough = (cleaned.match(/[^.!?]+(?:[.!?]+["')\]]*|$)/gu) || [cleaned])
     .map(normalizeNoise)
     .filter(Boolean);
 
-  const out=[];
-  for(const part of rough){
-    if(!out.length){ out.push(part); continue; }
-    const prev=out[out.length-1];
-    if(isFragment(prev) || /^[a-zà-öø-ÿąćęłńóśźżäöü]/u.test(part) || prev.length < 45){
-      out[out.length-1]=normalizeNoise(`${prev} ${part}`);
-    } else {
-      out.push(part);
-    }
-  }
-
   const final=[];
-  for(const u of out){
-    if(u.length <= 500){ final.push(u); continue; }
-    const pieces=u.split(/;\s+|,\s+(?=(?:and|but|so|because|which|who|when|where|und|aber|weil|i|ale|bo)\b)/i);
+  for(const unit of rough){
+    if(unit.length <= 520){
+      final.push(unit);
+      continue;
+    }
+
+    // Safety split for poorly punctuated caption stretches.
+    const pieces = unit.split(/;\s+|,\s+(?=(?:and|but|so|because|which|who|when|where|while|although|und|aber|weil|wenn|i|ale|bo|gdy|który|która|które)\b)/i);
     let buf="";
-    for(const p of pieces){
-      if((buf+" "+p).trim().length>380 && buf){
+    for(const part of pieces){
+      const next=normalizeNoise(`${buf} ${part}`);
+      if(next.length>380 && buf){
         final.push(normalizeNoise(buf));
-        buf=p;
+        buf=part;
       }else{
-        buf=normalizeNoise(`${buf} ${p}`);
+        buf=next;
       }
     }
     if(buf) final.push(normalizeNoise(buf));
   }
-  return final.filter(x=>!isFragment(x));
+
+  return final.filter(Boolean);
 }
 function sentences(v){ return coherentUnits(v); }
 
+
+function isLowValue(s){
+  const t=normalizeNoise(s);
+  const low=t.toLowerCase();
+  if(!t || t.length<35) return true;
+  if(/^(good morning|good afternoon|good evening|hello|hi|how are you|thank you|thanks|okay|ok|all right)\b/i.test(t)) return true;
+  if(/^(don'?t you|am i right|right)\??$/i.test(t)) return true;
+  if(/^(i think|i mean|you know|actually|anyway|by the way)\b/i.test(t) && t.length<95) return true;
+  if(/^[^A-Za-zÀ-ÖØ-öø-ÿĄĆĘŁŃÓŚŹŻąćęłńóśźż]*$/u.test(t)) return true;
+  return false;
+}
+function topTerms(raw, limit=14){
+  const f=freqMap(raw);
+  return [...f.entries()]
+    .filter(([w])=>w.length>=4)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,limit)
+    .map(([w])=>w);
+}
+function topicalOverlap(s, terms){
+  const ws=new Set(words(s));
+  let hit=0;
+  for(const t of terms) if(ws.has(t)) hit++;
+  return hit;
+}
+function argumentMarkerScore(s){
+  let score=0;
+  if(/\b(the point is|the problem is|the reason is|the purpose|the whole system|our system|we need to|we have to|what we know|the important thing|is as important as|is that|means that|results in|leads to|predicated|hierarchy|fundamental|crucial)\b/i.test(s)) score+=2.5;
+  if(/\b(education|creativity|intelligence|talent|system|future|children|people|human|academic|school|schools|university|degree)\b/i.test(s)) score+=0.7;
+  if(/\b(i think|i believe|i feel|in my view|you know|actually|anyway)\b/i.test(s)) score-=0.7;
+  return score;
+}
+function exampleMarkerScore(s){
+  let score=0;
+  if(/\b(for example|for instance|a good example|let me tell you|there was|there were|once|when i|when my|my son|my daughter|a little girl|a little boy|a girl|a boy|a woman|a man|story|case)\b/i.test(s)) score+=2.3;
+  if(/\b(said|told|teacher|school|doctor|specialist|company|career|dance|artist|professor)\b/i.test(s)) score+=0.5;
+  return score;
+}
 function scoreSentence(s,f,idx,total){
   const ws=words(s);
   if(!ws.length) return 0;
   const lexical=ws.reduce((a,w)=>a+Math.log1p(f.get(w)||0),0)/Math.sqrt(ws.length);
-  const position = total>1 ? (1 - idx/(total-1))*0.12 : 0.12;
-  const complete = /[.!?]$/.test(s) ? 0.18 : 0;
-  const quotePenalty = ((s.match(/"/g)||[]).length % 2) ? -0.2 : 0;
-  return lexical+position+complete+quotePenalty;
+  const position = total>1 ? (1 - idx/(total-1))*0.08 : 0.08;
+  const complete = /[.!?]["')\]]*$/.test(s) ? 0.15 : 0;
+  const quotePenalty = ((s.match(/"/g)||[]).length % 2) ? -0.15 : 0;
+  const thesisBonus = argumentMarkerScore(s);
+  const fillerPenalty = isLowValue(s) ? -3 : 0;
+  return lexical+position+complete+quotePenalty+thesisBonus+fillerPenalty;
 }
 function rankedUnits(raw){
   const ss=sentences(raw);
   const f=freqMap(raw);
   return ss.map((s,i)=>({s,i,score:scoreSentence(s,f,i,ss.length)}))
-    .filter(x=>x.s.length>=45)
+    .filter(x=>x.s.length>=45 && !isLowValue(x.s))
     .sort((a,b)=>b.score-a.score);
 }
 function diverseTop(raw, limit=8){
@@ -139,36 +176,45 @@ export function videoKeyPoints(raw, limit=10){
 }
 export function videoClaims(raw){
   const t=text(raw);
-  const claimRe=/\b(is|are|was|were|will|can|cannot|causes?|leads? to|increases?|decreases?|proves?|shows?|means?|equals?|must|should|ist|sind|war|waren|wird|werden|kann|können|muss|müssen|soll|sollte|zeigt|bedeutet|führt zu|jest|są|był|była|było|będą|może|mogą|musi|muszą|powinien|powinna|pokazuje|oznacza|prowadzi do|es|son|fue|será|puede|debe|muestra|significa|est|sont|était|sera|peut|doit|montre|signifie)\b/i;
+  const units=sentences(t);
   const numberRe=/\b\d+(?:[.,]\d+)?%?\b/;
   const evidenceRe=/\b(according to|research|study|studies|data|evidence|report|survey|unesco|who|nasa|shows that|found that|demonstrates?|statistics?|badania|dane|według|raport|badanie|studie|daten|laut)\b/i;
+  const assertiveRe=/\b(is|are|was|were|will|causes?|leads? to|increases?|decreases?|shows?|means?|equals?|cannot|must|ist|sind|war|waren|wird|zeigt|bedeutet|führt zu|jest|są|był|była|będzie|pokazuje|oznacza|prowadzi do)\b/i;
   const subjectiveRe=/\b(i think|i believe|my contention|in my view|i feel|i love|i like|amazing|wonderful|extraordinary|marvel|cool|great|beautiful|terrible|moim zdaniem|uważam|wydaje mi się|ich denke|ich glaube)\b/i;
-  const questionRe=/\?$/;
   const metaRe=/\b(good morning|how are you|thank you|by the way|anyway|remember the story|do you remember|i want to talk about)\b/i;
 
-  const claims=[];
-  for(const source of sentences(t)){
-    const s=normalizeNoise(source);
-    if(metaRe.test(s) || questionRe.test(s) || s.length<55) continue;
-    if(subjectiveRe.test(s) && !numberRe.test(s) && !evidenceRe.test(s)) continue;
-    const factualSignal=claimRe.test(s)||numberRe.test(s)||evidenceRe.test(s);
-    if(!factualSignal) continue;
+  const ranked=[];
+  for(let i=0;i<units.length;i++){
+    const s=normalizeNoise(units[i]);
+    if(isLowValue(s) || metaRe.test(s) || /\?$/.test(s) || s.length<60) continue;
+    const hasNumber=numberRe.test(s);
+    const evidence=evidenceRe.test(s);
+    const assertive=assertiveRe.test(s);
+    if(!hasNumber && !evidence && !assertive) continue;
+    if(subjectiveRe.test(s) && !hasNumber && !evidence) continue;
+    if(/\b(I|my|me)\b/.test(s) && !hasNumber && !evidence && argumentMarkerScore(s)<1.5) continue;
 
-    let priority="medium";
-    if(numberRe.test(s)||evidenceRe.test(s)) priority="high";
-    if(/\b(may|might|could|possibly|perhaps|może|mogł|könnte|vielleicht)\b/i.test(s)) priority="low";
+    let score=0;
+    if(hasNumber) score+=3;
+    if(evidence) score+=3;
+    if(assertive) score+=1.2;
+    score+=Math.min(2.0,argumentMarkerScore(s));
+    if(s.length>=80 && s.length<=300) score+=0.8;
+    if(s.length>420) score-=1.2;
 
-    claims.push({
-      index:claims.length,
-      claim:s,
-      claim_type:"verifiable",
-      has_number:numberRe.test(s),
-      evidence_signal:evidenceRe.test(s),
-      verification_priority:priority,
-      needs_verification:true
-    });
-    if(claims.length>=20) break;
+    ranked.push({i,s,score,hasNumber,evidence});
   }
+
+  const selected=ranked.sort((a,b)=>b.score-a.score).slice(0,15).sort((a,b)=>a.i-b.i);
+  const claims=selected.map((x,index)=>({
+    index,
+    claim:x.s,
+    claim_type:"verifiable",
+    has_number:x.hasNumber,
+    evidence_signal:x.evidence,
+    verification_priority:(x.hasNumber||x.evidence)?"high":"medium",
+    needs_verification:true
+  }));
   return {count:claims.length,claims};
 }
 export function videoActionItems(raw){
@@ -200,16 +246,70 @@ export function videoAnswerQuestion(raw, rawQuestion){
   const q=text(rawQuestion,"question",4000);
   const units=sentences(t);
   const concepts=queryConcepts(q);
+  const terms=topTerms(t,16);
 
   if(concepts.includes("arguments") || concepts.includes("examples")){
-    const argumentPoints=diverseTop(units.filter(likelyArgument).join(" "),5);
-    const examplePoints=diverseTop(units.filter(likelyExample).join(" "),4);
-    const parts=[];
-    if(argumentPoints.length) parts.push(`Main arguments: ${argumentPoints.slice(0,3).join(" ")}`);
-    if(examplePoints.length) parts.push(`Examples: ${examplePoints.slice(0,3).join(" ")}`);
-    if(parts.length){
-      const evidence=[...argumentPoints.slice(0,3),...examplePoints.slice(0,3)];
-      return {question:q,answer:parts.join(" "),evidence,confidence:0.78,mode:"analytical-extractive"};
+    const argumentScored=units
+      .map((s,i)=>({
+        i,
+        s,
+        topic:topicalOverlap(s,terms),
+        arg:argumentMarkerScore(s)
+      }))
+      .filter(x=>!isLowValue(x.s) && x.s.length>=55)
+      .map(x=>({...x,score:x.topic*0.7+x.arg}))
+      .filter(x=>x.score>=1.4)
+      .sort((a,b)=>b.score-a.score)
+      .slice(0,10);
+
+    const exampleScored=[];
+    for(let i=0;i<units.length;i++){
+      const s=units[i];
+      const marker=exampleMarkerScore(s);
+      if(marker<1.8) continue;
+
+      const cluster=[s];
+      for(let j=i+1;j<Math.min(units.length,i+3);j++){
+        const next=units[j];
+        if(argumentMarkerScore(next)>=2.2) break;
+        if(cluster.join(" ").length + next.length > 430) break;
+        cluster.push(next);
+      }
+      const joined=cluster.join(" ");
+      exampleScored.push({
+        i,
+        s:joined,
+        score:marker + topicalOverlap(joined,terms)*0.2
+      });
+    }
+    exampleScored.sort((a,b)=>b.score-a.score);
+
+    const dedupe=(arr,limit)=>{
+      const out=[];
+      for(const x of arr){
+        const wx=new Set(words(x.s));
+        let dup=false;
+        for(const y of out){
+          const wy=new Set(words(y.s));
+          let hit=0;
+          for(const w of wx) if(wy.has(w)) hit++;
+          if(hit/Math.max(1,Math.min(wx.size,wy.size))>0.62){ dup=true; break; }
+        }
+        if(!dup) out.push(x);
+        if(out.length>=limit) break;
+      }
+      return out;
+    };
+
+    const args=dedupe(argumentScored,4).sort((a,b)=>a.i-b.i).map(x=>x.s);
+    const examples=dedupe(exampleScored,3).sort((a,b)=>a.i-b.i).map(x=>x.s);
+
+    if(args.length || examples.length){
+      const parts=[];
+      if(args.length) parts.push(`Main arguments: ${args.join(" ")}`);
+      if(examples.length) parts.push(`Examples: ${examples.join(" ")}`);
+      const evidence=[...args,...examples];
+      return {question:q,answer:parts.join(" "),evidence,confidence:0.8,mode:"analytical-extractive"};
     }
   }
 
@@ -223,7 +323,7 @@ export function videoAnswerQuestion(raw, rawQuestion){
     const sw=words(s);
     const overlap=sw.filter(w=>qWords.has(w)).length;
     return {i,s,score:overlap/Math.sqrt(sw.length||1)};
-  }).sort((a,b)=>b.score-a.score).slice(0,7);
+  }).filter(x=>!isLowValue(x.s)).sort((a,b)=>b.score-a.score).slice(0,7);
 
   const evidence=ranked.filter(x=>x.score>0.08).map(x=>x.s);
   if(evidence.length){
@@ -259,9 +359,9 @@ export function videoChapters(raw, target=8){
     const chunk=ss.slice(i,i+size);
     if(!chunk.length) continue;
     const rep=summarySentences(chunk.join(" "),1)[0]||chunk[0];
-    let title=words(rep).slice(0,10).join(" ");
-    if(!title) title=rep.slice(0,90);
-    title=title.charAt(0).toUpperCase()+title.slice(1);
+    let title=normalizeNoise(rep).slice(0,90);
+    if(title.length===90) title=title.replace(/\s+\S*$/,"").trim();
+    title=title.replace(/[.!?,;:\-–—\s]+$/g,"").trim();
     chapters.push({
       chapter:chapters.length+1,
       title,
@@ -315,6 +415,16 @@ export function videoAnalyze(raw, { question = "", keyPointLimit = 10, chapterTa
     chapters: {...chapters, chapters: withTimestamps(chapters.chapters,segments)},
     claims: {...claims, claims: withTimestamps(claims.claims,segments)},
     action_items: {...actions, action_items: withTimestamps(actions.action_items,segments)},
+    context_pack: {
+      purpose: "extractive model-ready context",
+      items: withTimestamps(
+        [...new Set([
+          ...(brief.key_points||[]).slice(0,5),
+          ...(claims.claims||[]).slice(0,4).map(x=>x.claim)
+        ])].slice(0,8),
+        segments
+      )
+    },
     efficiency: {
       transcript_chars: transcript.length,
       brief_chars: briefChars,
