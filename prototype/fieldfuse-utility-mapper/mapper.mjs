@@ -46,7 +46,7 @@ function fuseCluster(items){
   const x=weightedAverage(items,"x");
   const y=weightedAverage(items,"y");
   const depth=weightedAverage(items,"depth_m");
-  const sensors=[...new Set(items.map(o=>o.sensor))];
+  const sensors=[...new Set(items.map(o=>o.sensor))];\n  const instrumentSensors=sensors.filter(s=>!["records","local_knowledge","visual"].includes(s));
   const types=items.map(o=>o.utility_type).filter(Boolean).map(String);
   const typeCounts=Object.create(null);
   for(const t of types) typeCounts[t]=(typeCounts[t]||0)+1;
@@ -64,7 +64,7 @@ function fuseCluster(items){
   const confidence=clamp((1-miss)+diversityBonus-disagreementPenalty);
 
   const evidenceQuality =
-    confidence>=0.82 && sensors.length>=2 ? "high" :
+    confidence>=0.82 && instrumentSensors.length>=2 ? "high" :
     confidence>=0.62 ? "medium" : "low";
 
   return {
