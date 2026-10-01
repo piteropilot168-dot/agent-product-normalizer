@@ -75,6 +75,26 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         get: { operationId: "retryDecisionByStatus", summary: "Decide whether/how to retry an API or tool failure", parameters: [{ name: "status", in: "query", required: true, schema: { type: "integer" } }, { name: "error", in: "query", required: false, schema: { type: "string", maxLength: 4000 } }, { name: "attempt", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 20 } }], responses },
         post: { operationId: "retryDecision", summary: "Decide whether/how to retry an API or tool failure", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["status"], properties: { status: { type: "integer" }, error: { type: "string", maxLength: 4000 }, attempt: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false } } } }, responses },
       },
+      "/api/v1/tool-call-repair": {
+        post: {
+          operationId: "repairToolCall",
+          summary: "Repair a malformed or schema-invalid AI agent tool call",
+          description: "Deterministically repairs common tool-call failures such as tool-name casing/typos, fenced or trailing-comma JSON, safe primitive type coercions and unknown fields. It refuses to invent missing required values and returns safe_to_retry=false when intent cannot be recovered safely.",
+          requestBody: { required: true, content: { "application/json": { schema: {
+            type: "object",
+            required: ["tool_name","arguments","schema"],
+            properties: {
+              tool_name: { type: "string", minLength: 1, maxLength: 200 },
+              arguments: { description: "Tool arguments as a JSON object or JSON string" },
+              schema: { type: "object", additionalProperties: true },
+              available_tools: { type: "array", maxItems: 200, items: { type: "string", maxLength: 200 } },
+              error: { type: "string", maxLength: 8000 }
+            },
+            additionalProperties: false
+          } } } },
+          responses
+        }
+      },
       "/api/v1/prompt-injection-scan": { get: textGet("promptInjectionScanByText", "Scan untrusted text for common prompt-injection patterns", "text"), post: textPost("promptInjectionScan", "Scan untrusted text for common prompt-injection patterns", "text") },
       "/api/v1/redact-secrets": { get: textGet("redactSecretsByText", "Redact common credentials and token patterns", "text"), post: textPost("redactSecrets", "Redact common credentials and token patterns", "text") },
       "/api/v1/handoff-diff": {
