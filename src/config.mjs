@@ -18,7 +18,7 @@ export const config = {
     extractActions: process.env.X402_PRICE_EXTRACT_ACTIONS || "$0.002",
     makeSearchQuery: process.env.X402_PRICE_MAKE_SEARCH_QUERY || "$0.0015",
     missingFields: process.env.X402_PRICE_MISSING_FIELDS || "$0.001",
-    retryDecision: process.env.X402_PRICE_RETRY_DECISION || "$0.001",
+    retryDecision: process.env.X402_PRICE_RETRY_DECISION || "$0.001",\n    toolCallRepair: process.env.X402_PRICE_TOOL_CALL_REPAIR || "$0.006",
     promptInjectionScan: process.env.X402_PRICE_PROMPT_INJECTION_SCAN || "$0.002",
     redactSecrets: process.env.X402_PRICE_REDACT_SECRETS || "$0.002",
     handoffDiff: process.env.X402_PRICE_HANDOFF_DIFF || "$0.002",
