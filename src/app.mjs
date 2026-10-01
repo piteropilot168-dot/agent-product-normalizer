@@ -30,7 +30,8 @@ import {
   extractActionsBrowserDiscovery, extractActionsDiscovery,
   makeSearchQueryBrowserDiscovery, makeSearchQueryDiscovery,
   missingFieldsBrowserDiscovery, missingFieldsDiscovery,
-  retryDecisionBrowserDiscovery, retryDecisionDiscovery,\n  toolCallRepairDiscovery,
+  retryDecisionBrowserDiscovery, retryDecisionDiscovery,
+  toolCallRepairDiscovery,
   promptInjectionBrowserDiscovery, promptInjectionDiscovery,
   redactSecretsBrowserDiscovery, redactSecretsDiscovery,
   handoffDiffBrowserDiscovery, handoffDiffDiscovery,
@@ -48,7 +49,8 @@ import { normalizeProductPage } from "./normalize.mjs";
 import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
-import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep } from "./agentops.mjs";\nimport { repairToolCall } from "./toolrepair.mjs";
+import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep } from "./agentops.mjs";
+import { repairToolCall } from "./toolrepair.mjs";
 import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
 import {
   compareOffers,
@@ -84,7 +86,8 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       { id: "extract-actions", methods: ["GET", "POST"], path: "/api/v1/extract-actions", price: config.prices.extractActions },
       { id: "make-search-query", methods: ["GET", "POST"], path: "/api/v1/make-search-query", price: config.prices.makeSearchQuery },
       { id: "missing-fields", methods: ["GET", "POST"], path: "/api/v1/missing-fields", price: config.prices.missingFields },
-      { id: "retry-decision", methods: ["GET", "POST"], path: "/api/v1/retry-decision", price: config.prices.retryDecision },\n      { id: "tool-call-repair", methods: ["POST"], path: "/api/v1/tool-call-repair", price: config.prices.toolCallRepair },
+      { id: "retry-decision", methods: ["GET", "POST"], path: "/api/v1/retry-decision", price: config.prices.retryDecision },
+      { id: "tool-call-repair", methods: ["POST"], path: "/api/v1/tool-call-repair", price: config.prices.toolCallRepair },
       { id: "prompt-injection-scan", methods: ["GET", "POST"], path: "/api/v1/prompt-injection-scan", price: config.prices.promptInjectionScan },
       { id: "redact-secrets", methods: ["GET", "POST"], path: "/api/v1/redact-secrets", price: config.prices.redactSecrets },
       { id: "handoff-diff", methods: ["GET", "POST"], path: "/api/v1/handoff-diff", price: config.prices.handoffDiff },
@@ -160,7 +163,8 @@ Agent workflow utilities:
 - GET/POST /api/v1/extract-actions — ${config.prices.extractActions} — pull action items from notes or conversation text.
 - GET/POST /api/v1/make-search-query — ${config.prices.makeSearchQuery} — turn a verbose task into compact search queries.
 - GET/POST /api/v1/missing-fields — ${config.prices.missingFields} — check whether required tool-call inputs are present.
-- GET/POST /api/v1/retry-decision — ${config.prices.retryDecision} — classify tool/API failures and decide whether/how to retry.\n- POST /api/v1/tool-call-repair — ${config.prices.toolCallRepair} — repair malformed or schema-invalid tool calls deterministically; never invent missing required values.
+- GET/POST /api/v1/retry-decision — ${config.prices.retryDecision} — classify tool/API failures and decide whether/how to retry.
+- POST /api/v1/tool-call-repair — ${config.prices.toolCallRepair} — repair malformed or schema-invalid tool calls deterministically; never invent missing required values.
 - GET/POST /api/v1/prompt-injection-scan — ${config.prices.promptInjectionScan} — scan untrusted text for common prompt-injection patterns.
 - GET/POST /api/v1/redact-secrets — ${config.prices.redactSecrets} — redact common credential/token patterns before handoff or logging.
 - GET/POST /api/v1/handoff-diff — ${config.prices.handoffDiff} — report what changed between two agent states.
