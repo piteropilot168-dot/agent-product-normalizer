@@ -1,0 +1,9 @@
+[
+  {"id":"S1","sensor":"gpr_low","x":100.0,"y":50.0,"depth_m":3.9,"utility_type":"sewer","confidence":0.86},
+  {"id":"S2","sensor":"records","x":100.5,"y":50.1,"depth_m":3.6,"utility_type":"sewer","confidence":0.65},
+  {"id":"W1","sensor":"gpr_high","x":120.0,"y":52.0,"depth_m":1.7,"utility_type":"water","confidence":0.74},
+  {"id":"W2","sensor":"visual","x":120.4,"y":52.2,"depth_m":1.8,"utility_type":"water","confidence":0.55},
+  {"id":"P1","sensor":"em_active","x":140.0,"y":49.0,"depth_m":0.9,"utility_type":"power","confidence":0.93},
+  {"id":"P2","sensor":"gpr_high","x":140.3,"y":49.2,"depth_m":1.0,"utility_type":"power","confidence":0.78},
+  {"id":"T1","sensor":"local_knowledge","x":160.0,"y":55.0,"depth_m":1.5,"utility_type":"telecom","confidence":0.45}
+]
