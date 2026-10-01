@@ -1,4 +1,4 @@
-# Agent Product Normalizer + Video Intelligence API v0.8.2
+# Agent Utility API v0.9.0
 
 Machine-first x402 utilities for autonomous agents.
 
