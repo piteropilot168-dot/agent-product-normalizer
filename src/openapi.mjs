@@ -35,11 +35,38 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
     openapi: "3.1.0",
     info: {
       title: "Agent Product Normalizer + Video Intelligence API",
-      version: "0.8.2",
-      description: "Paid x402 microservices for autonomous agents: video context extraction, workflow compression, safety helpers and commerce normalization. USDC on Base. Every service supports GET plus agent-friendly POST.",
+      version: "0.8.5",
+      description: "Paid x402 microservices for autonomous agents: high-frequency hashing, video context extraction, workflow compression, safety helpers and commerce normalization. USDC on Base. Every service supports GET plus agent-friendly POST.",
     },
     servers: [{ url: baseUrl }],
     paths: {
+      "/api/v1/hash": {
+        get: {
+          operationId: "hashTextByQuery",
+          summary: "Hash text with SHA-256, SHA-512, SHA-1 or MD5",
+          description: "Low-cost deterministic hashing for checksums, content fingerprints, integrity checks and IDs. Returns both hex and base64.",
+          parameters: [
+            { name: "text", in: "query", required: true, schema: { type: "string", maxLength: 100000 } },
+            { name: "algo", in: "query", required: false, schema: { type: "string", enum: ["sha256","sha512","sha1","md5"], default: "sha256" } }
+          ],
+          responses,
+        },
+        post: {
+          operationId: "hashText",
+          summary: "Hash text with SHA-256, SHA-512, SHA-1 or MD5",
+          description: "Low-cost deterministic hashing for checksums, content fingerprints, integrity checks and IDs. Returns both hex and base64.",
+          requestBody: { required: true, content: { "application/json": { schema: {
+            type: "object",
+            required: ["text"],
+            properties: {
+              text: { type: "string", maxLength: 100000 },
+              algo: { type: "string", enum: ["sha256","sha512","sha1","md5"], default: "sha256" }
+            },
+            additionalProperties: false
+          } } } },
+          responses,
+        },
+      },
       "/api/v1/normalize": { get: singleGet("normalizeProductPageByUrl", "Normalize one public product page"), post: singlePost("normalizeProductPage", "Normalize one public product page") },
       "/api/v1/extract-offer": { get: singleGet("extractOfferByUrl", "Extract compact offer facts"), post: singlePost("extractOffer", "Extract compact offer facts") },
       "/api/v1/validate": { get: singleGet("validateProductDataByUrl", "Score product-data quality"), post: singlePost("validateProductData", "Score product-data quality") },
