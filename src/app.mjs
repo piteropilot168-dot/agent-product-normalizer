@@ -59,84 +59,92 @@ import {
 } from "./services.mjs";
 
 
-const X402_DISCOVERY_TIMEOUT_MS = 5_000;
+const X402_DISCOVERY_TIMEOUT_MS = 6_000;
 const X402_DISCOVERY_RETRIES = 2;
 const X402_TRANSACTION_TIMEOUT_MS = 90_000;
-const X402_FALLBACK_FACILITATOR_URL =
-  process.env.X402_FACILITATOR_FALLBACK_URL || "https://open.x402.host";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function createResilientFacilitatorClient(primaryUrl, network) {
-  const urls = [...new Set([primaryUrl, X402_FALLBACK_FACILITATOR_URL].filter(Boolean))];
-  const transactionClients = new Map(
-    urls.map((url) => [
-      url,
-      new HTTPFacilitatorClient({ url, timeoutMs: X402_TRANSACTION_TIMEOUT_MS }),
-    ]),
-  );
-  let activeClient = transactionClients.get(primaryUrl) || transactionClients.values().next().value;
+  const transactionClient = new HTTPFacilitatorClient({
+    url: primaryUrl,
+    timeoutMs: X402_TRANSACTION_TIMEOUT_MS,
+  });
+  const discoveryClient = new HTTPFacilitatorClient({
+    url: primaryUrl,
+    timeoutMs: X402_DISCOVERY_TIMEOUT_MS,
+  });
+
+  const knownExactCapability = {
+    kinds: [{ x402Version: 2, scheme: "exact", network }],
+    extensions: ["bazaar"],
+    signers: {},
+  };
 
   return {
     async getSupported() {
       let lastError;
 
-      for (const url of urls) {
-        const discoveryClient = new HTTPFacilitatorClient({
-          url,
-          timeoutMs: X402_DISCOVERY_TIMEOUT_MS,
-        });
+      for (let attempt = 1; attempt <= X402_DISCOVERY_RETRIES; attempt += 1) {
+        try {
+          const supported = await discoveryClient.getSupported();
+          const compatible = supported.kinds.some(
+            (kind) =>
+              kind.x402Version === 2 &&
+              kind.scheme === "exact" &&
+              kind.network === network,
+          );
 
-        for (let attempt = 1; attempt <= X402_DISCOVERY_RETRIES; attempt += 1) {
-          try {
-            const supported = await discoveryClient.getSupported();
-            const compatible = supported.kinds.some(
-              (kind) =>
-                kind.x402Version === 2 &&
-                kind.scheme === "exact" &&
-                kind.network === network,
+          if (!compatible) {
+            throw new Error(
+              `Configured facilitator does not advertise exact/v2 for ${network}`,
             );
+          }
 
-            if (!compatible) {
-              throw new Error(`Facilitator ${url} does not advertise exact/v2 for ${network}`);
-            }
-
-            activeClient = transactionClients.get(url);
-            console.info(JSON.stringify({
-              event: "x402_facilitator_ready",
-              facilitator: url,
-              network,
-              attempt,
-              fallback: url !== primaryUrl,
-            }));
-            return supported;
-          } catch (error) {
-            lastError = error;
-            console.warn(JSON.stringify({
-              event: "x402_facilitator_discovery_failure",
-              facilitator: url,
-              network,
-              attempt,
-              error: error instanceof Error ? error.message : String(error),
-            }));
-            if (attempt < X402_DISCOVERY_RETRIES) {
-              await sleep(250 * attempt);
-            }
+          console.info(JSON.stringify({
+            event: "x402_facilitator_ready",
+            facilitator: primaryUrl,
+            network,
+            attempt,
+            capabilitySource: "live",
+          }));
+          return supported;
+        } catch (error) {
+          lastError = error;
+          console.warn(JSON.stringify({
+            event: "x402_facilitator_discovery_failure",
+            facilitator: primaryUrl,
+            network,
+            attempt,
+            error: error instanceof Error ? error.message : String(error),
+          }));
+          if (attempt < X402_DISCOVERY_RETRIES) {
+            await sleep(250 * attempt);
           }
         }
       }
 
-      throw lastError || new Error("No x402 facilitator is available");
+      // Payment requirements are deterministic for our registered exact/Base
+      // scheme. A transient /supported outage must not turn an unpaid request
+      // into HTTP 500. Verification and settlement still go to the configured
+      // facilitator and remain authoritative.
+      console.warn(JSON.stringify({
+        event: "x402_facilitator_capability_fallback",
+        facilitator: primaryUrl,
+        network,
+        error: lastError instanceof Error ? lastError.message : String(lastError),
+      }));
+      return knownExactCapability;
     },
 
     verify(paymentPayload, paymentRequirements) {
-      return activeClient.verify(paymentPayload, paymentRequirements);
+      return transactionClient.verify(paymentPayload, paymentRequirements);
     },
 
     settle(paymentPayload, paymentRequirements) {
-      // Do not fail over settlement after a timeout: the original settlement may
-      // already be in flight/on-chain and cross-facilitator retry could be ambiguous.
-      return activeClient.settle(paymentPayload, paymentRequirements);
+      // Never blindly retry settlement after timeout. The facilitator may have
+      // completed it even when the HTTP response was lost.
+      return transactionClient.settle(paymentPayload, paymentRequirements);
     },
   };
 }
