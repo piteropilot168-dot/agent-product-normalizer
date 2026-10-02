@@ -43,12 +43,14 @@ import {
   videoClaimsBrowserDiscovery, videoClaimsDiscovery,
   videoActionItemsBrowserDiscovery, videoActionItemsDiscovery,
   videoAnalyzeBrowserDiscovery, videoAnalyzeDiscovery,
+  hashBrowserDiscovery, hashDiscovery,
 } from "./discovery.mjs";
 import { normalizeProductPage } from "./normalize.mjs";
 import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
 import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep } from "./agentops.mjs";
+import { hashText } from "./utility.mjs";
 import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
 import {
   compareOffers,
@@ -157,10 +159,11 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.8.4",
+    version: "0.8.5",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
+      { id: "hash", methods: ["GET", "POST"], path: "/api/v1/hash", price: config.prices.hash },
       { id: "normalize", methods: ["GET", "POST"], path: "/api/v1/normalize", price: config.prices.normalize },
       { id: "extract-offer", methods: ["GET", "POST"], path: "/api/v1/extract-offer", price: config.prices.extractOffer },
       { id: "validate", methods: ["GET", "POST"], path: "/api/v1/validate", price: config.prices.validate },
@@ -191,6 +194,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
     ],
     docs: "/openapi.json",
     browser_tests: {
+      hash: "/test-hash",
       normalize: "/test-payment",
       extract_offer: "/test-extract-offer",
       validate: "/test-validate",
@@ -217,18 +221,37 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   app.get("/", (_req, res) => res.json(catalog));
   app.get("/catalog", (_req, res) => res.json(catalog));
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.4" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.5" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
+
+  // PREVIEW ONLY: one-shot free registration of production origin with Agent402.
+  // Remove before merging to main.
+  app.get("/ops/register-agent402", async (_req, res, next) => {
+    try {
+      const response = await fetch("https://agent402.tools/api/index/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ origin: "https://agent-product-normalizer.vercel.app" }),
+      });
+      const body = await response.text();
+      res.status(response.status).type(response.headers.get("content-type") || "text/plain").send(body);
+    } catch (error) {
+      next(error);
+    }
+  });
 
   app.get("/llms.txt", (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     res.type("text/plain").send(`# Agent Utility API — x402 microservices for autonomous agents
 
-Machine-first paid utilities for agent workflows: video context extraction, context compression, task cleanup, safety checks, workflow helpers and commerce normalization.
+Machine-first paid utilities for agent workflows: high-frequency hashing, video context extraction, context compression, task cleanup, safety checks, workflow helpers and commerce normalization.
 
 Base URL: ${baseUrl}
 Payment: USDC on Base (eip155:8453)
 Pay-to: ${config.payTo}
+
+High-frequency deterministic utility:
+- GET/POST /api/v1/hash — ${config.prices.hash} — sha256/sha512/sha1/md5 text hashing with hex and base64 output for checksums, fingerprints, integrity checks and deterministic IDs.
 
 Recommended video routes:
 - GET/POST /api/v1/video-analyze — ${config.prices.videoAnalyze} — YouTube video → agent-ready context. Extract transcript highlights, timestamped key points, chapters, technical commands, action items, candidate claims, context pack and optional evidence Q&A without making an agent read the full transcript.
@@ -316,7 +339,7 @@ Notes for agent callers:
       protocolVersion: "1.0",
       name: "Agent Product Normalizer",
       description: "Machine-first x402-paid utilities for agent workflow cleanup, safety checks, video context extraction and structured commerce data.",
-      version: "0.8.4",
+      version: "0.8.5",
       url: baseUrl,
       documentationUrl: `${baseUrl}/skill.md`,
       capabilities: {
@@ -336,6 +359,13 @@ Notes for agent callers:
       defaultInputModes: ["application/json", "text/plain"],
       defaultOutputModes: ["application/json"],
       skills: [
+        {
+          id: "hashing-encoding",
+          name: "Hashing and encoding utility",
+          description: "Compute deterministic SHA-256, SHA-512, SHA-1 or MD5 text digests with hex and base64 output for checksums, fingerprints, integrity checks and deterministic IDs.",
+          tags: ["hash", "sha256", "sha512", "encoding", "checksum", "deterministic"],
+          examples: ["Hash hello world with SHA-256", "Create a deterministic content fingerprint"],
+        },
         {
           id: "agent-workflow-utilities",
           name: "Agent workflow utilities",
@@ -387,8 +417,8 @@ Notes for agent callers:
       schema_version: "v1",
       name_for_human: "Agent Product Normalizer",
       name_for_model: "agent_product_normalizer",
-      description_for_human: "Paid agent utilities for video context, workflow compression, safety checks and structured commerce data.",
-      description_for_model: "Use this x402 service when an agent needs YouTube transcript extraction, video-to-text, compact timestamped video context, transcript highlights, key passages, chapters, technical tutorial command extraction, candidate claims, action items, or extractive evidence Q&A. It also provides task clarification, context compression, safety/workflow helpers and commerce normalization. Payments are USDC on Base.",
+      description_for_human: "Paid agent utilities for hashing, video context, workflow compression, safety checks and structured commerce data.",
+      description_for_model: "Use this x402 service when an agent needs YouTube transcript extraction, video-to-text, compact timestamped video context, transcript highlights, key passages, chapters, technical tutorial command extraction, candidate claims, action items, or extractive evidence Q&A. It also provides low-cost SHA hashing, task clarification, context compression, safety/workflow helpers and commerce normalization. Payments are USDC on Base.",
       auth: { type: "none" },
       api: {
         type: "openapi",
@@ -505,6 +535,9 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
 
   const absolute = (req, path) => `${req.protocol}://${req.get("host")}${path}`;
 
+  app.get("/test-hash", (_req, res) => {
+    res.redirect(`/api/v1/hash?text=${encodeURIComponent("hello world")}&algo=sha256`);
+  });
   app.get("/test-payment", (req, res) => {
     res.redirect(`/api/v1/normalize?url=${encodeURIComponent(absolute(req, "/demo-product"))}`);
   });
@@ -635,6 +668,22 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
     });
 
     app.use(paymentMiddleware({
+      "GET /api/v1/hash": {
+        accepts: accepts(config.prices.hash),
+        description: "Cryptographic hash of a text string using sha256, sha512, sha1 or md5; returns hex and base64 for checksums, fingerprints, integrity checks and deterministic IDs",
+        mimeType: "application/json",
+        serviceName: "Agent Hash Utility",
+        tags: ["hash", "sha256", "sha512", "encoding", "checksum", "crypto", "deterministic"],
+        extensions: hashBrowserDiscovery,
+      },
+      "POST /api/v1/hash": {
+        accepts: accepts(config.prices.hash),
+        description: "Cryptographic hash of a text string using sha256, sha512, sha1 or md5; returns hex and base64 for checksums, fingerprints, integrity checks and deterministic IDs",
+        mimeType: "application/json",
+        serviceName: "Agent Hash Utility",
+        tags: ["hash", "sha256", "sha512", "encoding", "checksum", "crypto", "deterministic"],
+        extensions: hashDiscovery,
+      },
       "GET /api/v1/normalize": {
         accepts: accepts(config.prices.normalize),
         description: "Normalize a public product page into agent-ready commerce JSON",
@@ -958,6 +1007,8 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   app.get("/api/v1/make-search-query", simpleTextHandler(makeSearchQuery, "task")); app.post("/api/v1/make-search-query", simpleTextHandler(makeSearchQuery, "task"));
   const missingHandler = (req,res,next) => { try { const source=req.method === "GET" ? req.query : req.body; let input=source?.input; if (req.method === "GET" && typeof input === "string") { try { input=JSON.parse(input); } catch { throw new InputError("input must be a valid JSON object"); } } res.set("cache-control","no-store").json(missingFields(input, source?.required_fields)); } catch(error){ next(error); } };
   app.get("/api/v1/missing-fields", missingHandler); app.post("/api/v1/missing-fields", missingHandler);
+  const hashHandler=(req,res,next)=>{ try { const source=req.method === "GET" ? req.query : req.body; if (typeof source?.text !== "string") throw new InputError("text is required and must be a string"); const algo=String(source?.algo || "sha256").toLowerCase(); if (!["sha256","sha512","sha1","md5"].includes(algo)) throw new InputError("algo must be one of sha256, sha512, sha1, md5"); if (source.text.length > 100000) throw new InputError("text must not exceed 100000 characters"); res.set("cache-control","no-store").json(hashText(source.text,algo)); } catch(error){next(error);} };
+  app.get("/api/v1/hash", hashHandler); app.post("/api/v1/hash", hashHandler);
   const retryHandler=(req,res,next)=>{ try { const source=req.method === "GET" ? req.query : req.body; res.set("cache-control","no-store").json(retryDecision({status:source?.status,error:source?.error,attempt:source?.attempt})); } catch(error){next(error);} };
   app.get("/api/v1/retry-decision", retryHandler); app.post("/api/v1/retry-decision", retryHandler);
   app.get("/api/v1/prompt-injection-scan", simpleTextHandler(promptInjectionScan, "text")); app.post("/api/v1/prompt-injection-scan", simpleTextHandler(promptInjectionScan, "text"));
