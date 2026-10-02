@@ -146,7 +146,7 @@ Payment: USDC on Base (eip155:8453)
 Pay-to: ${config.payTo}
 
 High-frequency deterministic utility:
-- GET/POST /api/v1/hash — ${config.prices.hash} — sha256/sha512/sha1/md5 text hashing (100000 UTF-8 bytes max); SHA-1/MD5 are legacy only. Use POST for larger or private inputs; agents with local crypto should hash locally.
+- Free sample: GET /api/v1/hash/sample returns a fixed SHA-256 example without payment. Try it before integrating; your own text uses POST /api/v1/hash at ${config.prices.hash} via x402. Maximum 100000 UTF-8 bytes; SHA-1/MD5 are legacy only.
 
 Recommended video routes:
 - GET/POST /api/v1/video-analyze — ${config.prices.videoAnalyze} — YouTube video → agent-ready context. Extract transcript highlights, timestamped key points, chapters, technical commands, action items, candidate claims, context pack and optional evidence Q&A without making an agent read the full transcript.
@@ -257,7 +257,7 @@ Notes for agent callers:
         {
           id: "hashing-encoding",
           name: "Hashing and encoding utility",
-          description: "Compute deterministic SHA-256, SHA-512, SHA-1 or MD5 text digests. SHA-1 and MD5 are legacy-only, not secure. Maximum input is 100000 UTF-8 bytes; use POST and do not send secrets in URLs. Agents with local crypto should normally hash locally.",
+          description: "Try GET /api/v1/hash/sample for a free fixed example with no payment. For your own text, POST to /api/v1/hash for SHA-256, SHA-512, SHA-1 or MD5. SHA-1 and MD5 are legacy-only, not secure. Maximum input is 100000 UTF-8 bytes; do not send secrets in URLs. Agents with local crypto should normally hash locally.",
           tags: ["hash", "sha256", "sha512", "encoding", "checksum", "deterministic"],
           examples: ["Hash hello world with SHA-256", "Create a deterministic content fingerprint"],
         },
@@ -430,8 +430,20 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
 
   const absolute = (req, path) => `${req.protocol}://${req.get("host")}${path}`;
 
-  app.get("/test-hash", (_req, res) => {
-    res.redirect(`/api/v1/hash?text=${encodeURIComponent("hello world")}&algo=sha256`);
+  app.get("/test-hash", (_req, res) => res.redirect("/api/v1/hash/sample"));
+  app.get("/api/v1/hash/sample", (_req, res) => {
+    res.set("cache-control", "public, max-age=3600").json({
+      free_sample: true,
+      input: "hello world",
+      ...hashText("hello world", "sha256"),
+      next: {
+        method: "POST",
+        path: "/api/v1/hash",
+        price: config.prices.hash,
+        network: config.network,
+        payment: "x402",
+      },
+    });
   });
   app.get("/test-payment", (req, res) => {
     res.redirect(`/api/v1/normalize?url=${encodeURIComponent(absolute(req, "/demo-product"))}`);
