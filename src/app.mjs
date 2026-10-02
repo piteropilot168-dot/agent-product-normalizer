@@ -221,6 +221,13 @@ Notes for agent callers:
         resource: `${baseUrl}${service.path}`,
         price: service.price,
       })),
+      free_samples: [{
+        id: "hash-sample",
+        method: "GET",
+        resource: `${baseUrl}/api/v1/hash/sample`,
+        payment_required: false,
+        description: "Fixed SHA-256 example to try the response format before using the paid hash endpoint.",
+      }],
     });
   };
 
