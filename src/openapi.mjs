@@ -44,9 +44,9 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         get: {
           operationId: "hashTextByQuery",
           summary: "Hash text with SHA-256, SHA-512, SHA-1 or MD5",
-          description: "Low-cost deterministic hashing for checksums, content fingerprints, integrity checks and IDs. Returns both hex and base64.",
+          description: "Returns deterministic hex and base64 digests. Maximum input 100000 UTF-8 bytes. SHA-1 and MD5 are legacy only and are not suitable for security or collision-resistant IDs. Query strings may be logged; use POST and do not submit secrets.",
           parameters: [
-            { name: "text", in: "query", required: true, schema: { type: "string", maxLength: 100000 } },
+            { name: "text", in: "query", required: true, schema: { type: "string", maxLength: 1000, description: "Short public text only; use POST for larger inputs." } },
             { name: "algo", in: "query", required: false, schema: { type: "string", enum: ["sha256","sha512","sha1","md5"], default: "sha256" } }
           ],
           responses,
@@ -54,18 +54,40 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         post: {
           operationId: "hashText",
           summary: "Hash text with SHA-256, SHA-512, SHA-1 or MD5",
-          description: "Low-cost deterministic hashing for checksums, content fingerprints, integrity checks and IDs. Returns both hex and base64.",
+          description: "Returns deterministic hex and base64 digests. Maximum input 100000 UTF-8 bytes. SHA-1 and MD5 are legacy only and are not suitable for security or collision-resistant IDs.",
           requestBody: { required: true, content: { "application/json": { schema: {
             type: "object",
             required: ["text"],
             properties: {
-              text: { type: "string", maxLength: 100000 },
+              text: { type: "string", maxLength: 100000, description: "Maximum 100000 UTF-8 bytes." },
               algo: { type: "string", enum: ["sha256","sha512","sha1","md5"], default: "sha256" }
             },
             additionalProperties: false
           } } } },
           responses,
         },
+      },
+      "/api/v1/hash/sample": {
+        get: {
+          operationId: "getFreeHashSample",
+          summary: "Get a free fixed hash example without payment",
+          description: "Returns the SHA-256 digest of the fixed public example “hello world”. Use this to inspect the response shape before paying to hash your own text.",
+          responses: {
+            "200": {
+              description: "Free fixed sample; no payment required.",
+              content: { "application/json": { example: {
+                free_sample: true,
+                input: "hello world",
+                algorithm: "sha256",
+                input_bytes: 11,
+                hex: "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+                base64: "uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek=",
+                security_note: null,
+                next: { method: "POST", path: "/api/v1/hash", payment: "x402" }
+              } } }
+            }
+          }
+        }
       },
       "/api/v1/normalize": { get: singleGet("normalizeProductPageByUrl", "Normalize one public product page"), post: singlePost("normalizeProductPage", "Normalize one public product page") },
       "/api/v1/extract-offer": { get: singleGet("extractOfferByUrl", "Extract compact offer facts"), post: singlePost("extractOffer", "Extract compact offer facts") },

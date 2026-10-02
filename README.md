@@ -2,6 +2,12 @@
 
 Machine-first x402 utilities for autonomous agents.
 
+## Hash utility
+
+Start with the free sample: `GET /api/v1/hash/sample` returns a fixed “hello world” example with no wallet or payment. When ready to hash your own text, use `POST /api/v1/hash` at `$0.0008` via x402.
+
+`POST /api/v1/hash` computes SHA-256, SHA-512, SHA-1 or MD5 and returns hex and base64 digests. Input is capped at 100,000 UTF-8 bytes. SHA-1 and MD5 are legacy compatibility options; the API marks them as unsuitable for security-sensitive use. Keep private text out of query strings. Since local agent runtimes can hash without a network request, the paid endpoint is useful mainly when an agent has no local crypto capability or needs a consistent remote interface.
+
 ## Video Intelligence — do not make the agent watch the video
 
 - `video-transcript` — fetch a YouTube transcript through a configured transcript provider — $0.015
