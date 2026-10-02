@@ -44,9 +44,9 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         get: {
           operationId: "hashTextByQuery",
           summary: "Hash text with SHA-256, SHA-512, SHA-1 or MD5",
-          description: "Low-cost deterministic hashing for checksums, content fingerprints, integrity checks and IDs. Returns both hex and base64.",
+          description: "Returns deterministic hex and base64 digests. Maximum input 100000 UTF-8 bytes. SHA-1 and MD5 are legacy only and are not suitable for security or collision-resistant IDs. Query strings may be logged; use POST and do not submit secrets.",
           parameters: [
-            { name: "text", in: "query", required: true, schema: { type: "string", maxLength: 100000 } },
+            { name: "text", in: "query", required: true, schema: { type: "string", maxLength: 1000, description: "Short public text only; use POST for larger inputs." } },
             { name: "algo", in: "query", required: false, schema: { type: "string", enum: ["sha256","sha512","sha1","md5"], default: "sha256" } }
           ],
           responses,
@@ -54,12 +54,12 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         post: {
           operationId: "hashText",
           summary: "Hash text with SHA-256, SHA-512, SHA-1 or MD5",
-          description: "Low-cost deterministic hashing for checksums, content fingerprints, integrity checks and IDs. Returns both hex and base64.",
+          description: "Returns deterministic hex and base64 digests. Maximum input 100000 UTF-8 bytes. SHA-1 and MD5 are legacy only and are not suitable for security or collision-resistant IDs.",
           requestBody: { required: true, content: { "application/json": { schema: {
             type: "object",
             required: ["text"],
             properties: {
-              text: { type: "string", maxLength: 100000 },
+              text: { type: "string", maxLength: 100000, description: "Maximum 100000 UTF-8 bytes." },
               algo: { type: "string", enum: ["sha256","sha512","sha1","md5"], default: "sha256" }
             },
             additionalProperties: false

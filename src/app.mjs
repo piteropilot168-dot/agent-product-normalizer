@@ -51,6 +51,7 @@ import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
 import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep } from "./agentops.mjs";
 import { hashText } from "./utility.mjs";
+import { createResilientFacilitatorClient } from "./facilitator.mjs";
 import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
 import {
   compareOffers,
@@ -60,96 +61,6 @@ import {
   validateNormalized,
 } from "./services.mjs";
 
-
-const X402_DISCOVERY_TIMEOUT_MS = 6_000;
-const X402_DISCOVERY_RETRIES = 2;
-const X402_TRANSACTION_TIMEOUT_MS = 90_000;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function createResilientFacilitatorClient(primaryUrl, network) {
-  const transactionClient = new HTTPFacilitatorClient({
-    url: primaryUrl,
-    timeoutMs: X402_TRANSACTION_TIMEOUT_MS,
-  });
-  const discoveryClient = new HTTPFacilitatorClient({
-    url: primaryUrl,
-    timeoutMs: X402_DISCOVERY_TIMEOUT_MS,
-  });
-
-  const knownExactCapability = {
-    kinds: [{ x402Version: 2, scheme: "exact", network }],
-    extensions: ["bazaar"],
-    signers: {},
-  };
-
-  return {
-    async getSupported() {
-      let lastError;
-
-      for (let attempt = 1; attempt <= X402_DISCOVERY_RETRIES; attempt += 1) {
-        try {
-          const supported = await discoveryClient.getSupported();
-          const compatible = supported.kinds.some(
-            (kind) =>
-              kind.x402Version === 2 &&
-              kind.scheme === "exact" &&
-              kind.network === network,
-          );
-
-          if (!compatible) {
-            throw new Error(
-              `Configured facilitator does not advertise exact/v2 for ${network}`,
-            );
-          }
-
-          console.info(JSON.stringify({
-            event: "x402_facilitator_ready",
-            facilitator: primaryUrl,
-            network,
-            attempt,
-            capabilitySource: "live",
-          }));
-          return supported;
-        } catch (error) {
-          lastError = error;
-          console.warn(JSON.stringify({
-            event: "x402_facilitator_discovery_failure",
-            facilitator: primaryUrl,
-            network,
-            attempt,
-            error: error instanceof Error ? error.message : String(error),
-          }));
-          if (attempt < X402_DISCOVERY_RETRIES) {
-            await sleep(250 * attempt);
-          }
-        }
-      }
-
-      // Payment requirements are deterministic for our registered exact/Base
-      // scheme. A transient /supported outage must not turn an unpaid request
-      // into HTTP 500. Verification and settlement still go to the configured
-      // facilitator and remain authoritative.
-      console.warn(JSON.stringify({
-        event: "x402_facilitator_capability_fallback",
-        facilitator: primaryUrl,
-        network,
-        error: lastError instanceof Error ? lastError.message : String(lastError),
-      }));
-      return knownExactCapability;
-    },
-
-    verify(paymentPayload, paymentRequirements) {
-      return transactionClient.verify(paymentPayload, paymentRequirements);
-    },
-
-    settle(paymentPayload, paymentRequirements) {
-      // Never blindly retry settlement after timeout. The facilitator may have
-      // completed it even when the HTTP response was lost.
-      return transactionClient.settle(paymentPayload, paymentRequirements);
-    },
-  };
-}
 
 export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPage = safeFetchHtml } = {}) {
   const app = express();
@@ -235,7 +146,7 @@ Payment: USDC on Base (eip155:8453)
 Pay-to: ${config.payTo}
 
 High-frequency deterministic utility:
-- GET/POST /api/v1/hash — ${config.prices.hash} — sha256/sha512/sha1/md5 text hashing with hex and base64 output for checksums, fingerprints, integrity checks and deterministic IDs.
+- GET/POST /api/v1/hash — ${config.prices.hash} — sha256/sha512/sha1/md5 text hashing (100000 UTF-8 bytes max); SHA-1/MD5 are legacy only. Use POST for larger or private inputs; agents with local crypto should hash locally.
 
 Recommended video routes:
 - GET/POST /api/v1/video-analyze — ${config.prices.videoAnalyze} — YouTube video → agent-ready context. Extract transcript highlights, timestamped key points, chapters, technical commands, action items, candidate claims, context pack and optional evidence Q&A without making an agent read the full transcript.
@@ -346,7 +257,7 @@ Notes for agent callers:
         {
           id: "hashing-encoding",
           name: "Hashing and encoding utility",
-          description: "Compute deterministic SHA-256, SHA-512, SHA-1 or MD5 text digests with hex and base64 output for checksums, fingerprints, integrity checks and deterministic IDs.",
+          description: "Compute deterministic SHA-256, SHA-512, SHA-1 or MD5 text digests. SHA-1 and MD5 are legacy-only, not secure. Maximum input is 100000 UTF-8 bytes; use POST and do not send secrets in URLs. Agents with local crypto should normally hash locally.",
           tags: ["hash", "sha256", "sha512", "encoding", "checksum", "deterministic"],
           examples: ["Hash hello world with SHA-256", "Create a deterministic content fingerprint"],
         },
@@ -597,7 +508,9 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       .withConfig({ appName: "Agent Product Normalizer", testnet: false })
       .build();
 
-    const facilitator = createResilientFacilitatorClient(config.facilitatorUrl, config.network);
+    const facilitator = createResilientFacilitatorClient(config.facilitatorUrl, config.network, {
+      Client: HTTPFacilitatorClient,
+    });
     const resourceServer = new x402ResourceServer(facilitator)
       .register(config.network, new ExactEvmScheme())
       .registerExtension(bazaarResourceServerExtension);
@@ -991,7 +904,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   app.get("/api/v1/make-search-query", simpleTextHandler(makeSearchQuery, "task")); app.post("/api/v1/make-search-query", simpleTextHandler(makeSearchQuery, "task"));
   const missingHandler = (req,res,next) => { try { const source=req.method === "GET" ? req.query : req.body; let input=source?.input; if (req.method === "GET" && typeof input === "string") { try { input=JSON.parse(input); } catch { throw new InputError("input must be a valid JSON object"); } } res.set("cache-control","no-store").json(missingFields(input, source?.required_fields)); } catch(error){ next(error); } };
   app.get("/api/v1/missing-fields", missingHandler); app.post("/api/v1/missing-fields", missingHandler);
-  const hashHandler=(req,res,next)=>{ try { const source=req.method === "GET" ? req.query : req.body; if (typeof source?.text !== "string") throw new InputError("text is required and must be a string"); const algo=String(source?.algo || "sha256").toLowerCase(); if (!["sha256","sha512","sha1","md5"].includes(algo)) throw new InputError("algo must be one of sha256, sha512, sha1, md5"); if (source.text.length > 100000) throw new InputError("text must not exceed 100000 characters"); res.set("cache-control","no-store").json(hashText(source.text,algo)); } catch(error){next(error);} };
+  const hashHandler=(req,res,next)=>{ try { const source=req.method === "GET" ? req.query : req.body; if (typeof source?.text !== "string") throw new InputError("text is required and must be a string"); if (req.method === "GET" && source.text.length > 1000) throw new InputError("GET text is limited to 1000 characters; use POST for larger values"); const algo=String(source?.algo || "sha256").toLowerCase(); if (!["sha256","sha512","sha1","md5"].includes(algo)) throw new InputError("algo must be one of sha256, sha512, sha1, md5"); if (Buffer.byteLength(source.text,"utf8") > 100000) throw new InputError("text must not exceed 100000 UTF-8 bytes"); res.set("cache-control","no-store").json(hashText(source.text,algo)); } catch(error){next(error);} };
   app.get("/api/v1/hash", hashHandler); app.post("/api/v1/hash", hashHandler);
   const retryHandler=(req,res,next)=>{ try { const source=req.method === "GET" ? req.query : req.body; res.set("cache-control","no-store").json(retryDecision({status:source?.status,error:source?.error,attempt:source?.attempt})); } catch(error){next(error);} };
   app.get("/api/v1/retry-decision", retryHandler); app.post("/api/v1/retry-decision", retryHandler);

@@ -209,14 +209,14 @@ const missingOutput = { example: { required_count: 3, present_count: 2, missing_
 export const missingFieldsBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { input: '{"url":"https://example.com","query":"solar"}', required_fields: "url,query,limit" }, inputSchema: { type: "object", properties: { input: { type: "string", maxLength: 12000, description: "JSON object as a string" }, required_fields: { type: "string", maxLength: 2000, description: "Comma-separated required field names" } }, required: ["input","required_fields"], additionalProperties: false }, output: missingOutput });
 export const missingFieldsDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { input: { url: "https://example.com", query: "solar" }, required_fields: ["url","query","limit"] }, inputSchema: { type: "object", properties: { input: { type: "object", additionalProperties: true }, required_fields: { type: "array", minItems: 1, maxItems: 50, items: { type: "string" } } }, required: ["input","required_fields"], additionalProperties: false }, output: missingOutput });
 
-const hashOutput = { example: { algorithm: "sha256", input_bytes: 11, hex: "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9", base64: "uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek=" } };
+const hashOutput = { example: { algorithm: "sha256", input_bytes: 11, hex: "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9", base64: "uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek=", security_note: null } };
 export const hashBrowserDiscovery = declareDiscoveryExtension({
   method: "GET",
   input: { text: "hello world", algo: "sha256" },
   inputSchema: {
     type: "object",
     properties: {
-      text: { type: "string", maxLength: 100000, description: "Text to hash" },
+      text: { type: "string", maxLength: 1000, description: "Short public text only; query strings may be logged. Use POST for larger or private values." },
       algo: { type: "string", enum: ["sha256", "sha512", "sha1", "md5"], default: "sha256" },
     },
     required: ["text"],
@@ -231,7 +231,7 @@ export const hashDiscovery = declareDiscoveryExtension({
   inputSchema: {
     type: "object",
     properties: {
-      text: { type: "string", maxLength: 100000, description: "Text to hash" },
+      text: { type: "string", maxLength: 100000, description: "Maximum 100000 UTF-8 bytes. SHA-1 and MD5 are legacy only, not secure. Do not send secrets in URLs." },
       algo: { type: "string", enum: ["sha256", "sha512", "sha1", "md5"], default: "sha256" },
     },
     required: ["text"],

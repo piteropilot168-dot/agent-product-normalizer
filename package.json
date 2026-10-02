@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "node --watch server.mjs",
     "start": "node server.mjs",
-    "check": "node --check api/index.mjs && node --check src/app.mjs && node --check src/normalize.mjs && node --check src/safe-fetch.mjs && node --check src/services.mjs && node --check src/friction.mjs && node --check src/agentops.mjs && node --check src/video.mjs && node --check src/discovery.mjs && node --check src/openapi.mjs && node --check src/utility.mjs"
+    "check": "node --check api/index.mjs && node --check src/app.mjs && node --check src/normalize.mjs && node --check src/safe-fetch.mjs && node --check src/services.mjs && node --check src/friction.mjs && node --check src/agentops.mjs && node --check src/video.mjs && node --check src/discovery.mjs && node --check src/openapi.mjs && node --check src/utility.mjs && node --check src/facilitator.mjs",
+    "test": "NODE_ENV=test node --test"
   },
   "dependencies": {
     "@x402/core": "2.26.0",
