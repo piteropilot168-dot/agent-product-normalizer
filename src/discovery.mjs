@@ -209,6 +209,37 @@ const missingOutput = { example: { required_count: 3, present_count: 2, missing_
 export const missingFieldsBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { input: '{"url":"https://example.com","query":"solar"}', required_fields: "url,query,limit" }, inputSchema: { type: "object", properties: { input: { type: "string", maxLength: 12000, description: "JSON object as a string" }, required_fields: { type: "string", maxLength: 2000, description: "Comma-separated required field names" } }, required: ["input","required_fields"], additionalProperties: false }, output: missingOutput });
 export const missingFieldsDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { input: { url: "https://example.com", query: "solar" }, required_fields: ["url","query","limit"] }, inputSchema: { type: "object", properties: { input: { type: "object", additionalProperties: true }, required_fields: { type: "array", minItems: 1, maxItems: 50, items: { type: "string" } } }, required: ["input","required_fields"], additionalProperties: false }, output: missingOutput });
 
+const hashOutput = { example: { algorithm: "sha256", input_bytes: 11, hex: "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9", base64: "uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek=" } };
+export const hashBrowserDiscovery = declareDiscoveryExtension({
+  method: "GET",
+  input: { text: "hello world", algo: "sha256" },
+  inputSchema: {
+    type: "object",
+    properties: {
+      text: { type: "string", maxLength: 100000, description: "Text to hash" },
+      algo: { type: "string", enum: ["sha256", "sha512", "sha1", "md5"], default: "sha256" },
+    },
+    required: ["text"],
+    additionalProperties: false,
+  },
+  output: hashOutput,
+});
+export const hashDiscovery = declareDiscoveryExtension({
+  method: "POST",
+  bodyType: "json",
+  input: { text: "hello world", algo: "sha256" },
+  inputSchema: {
+    type: "object",
+    properties: {
+      text: { type: "string", maxLength: 100000, description: "Text to hash" },
+      algo: { type: "string", enum: ["sha256", "sha512", "sha1", "md5"], default: "sha256" },
+    },
+    required: ["text"],
+    additionalProperties: false,
+  },
+  output: hashOutput,
+});
+
 const retryOutput = { example: { retry: true, reason: "rate-limited", next_action: "retry-with-backoff", suggested_delay_ms: 2000, attempt: 2, status: 429 } };
 export const retryDecisionBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { status: "429", error: "rate limited", attempt: "2" }, inputSchema: { type: "object", properties: { status: { type: "string", maxLength: 4 }, error: { type: "string", maxLength: 4000 }, attempt: { type: "string", maxLength: 3 } }, required: ["status"], additionalProperties: false }, output: retryOutput });
 export const retryDecisionDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { status: 429, error: "rate limited", attempt: 2 }, inputSchema: { type: "object", properties: { status: { type: "integer", minimum: 0, maximum: 599 }, error: { type: "string", maxLength: 4000 }, attempt: { type: "integer", minimum: 1, maximum: 20 } }, required: ["status"], additionalProperties: false }, output: retryOutput });
