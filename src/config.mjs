@@ -4,6 +4,7 @@ export const config = {
   payTo: process.env.PAY_TO_ADDRESS || DEFAULT_PAY_TO,
   network: process.env.X402_NETWORK || "eip155:8453",
   prices: {
+    hash: process.env.X402_PRICE_HASH || "$0.0008",
     normalize: process.env.X402_PRICE_NORMALIZE || process.env.X402_PRICE || "$0.01",
     extractOffer: process.env.X402_PRICE_EXTRACT_OFFER || "$0.01",
     validate: process.env.X402_PRICE_VALIDATE || "$0.02",
