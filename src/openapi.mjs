@@ -67,6 +67,28 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           responses,
         },
       },
+      "/api/v1/hash/sample": {
+        get: {
+          operationId: "getFreeHashSample",
+          summary: "Get a free fixed hash example without payment",
+          description: "Returns the SHA-256 digest of the fixed public example “hello world”. Use this to inspect the response shape before paying to hash your own text.",
+          responses: {
+            "200": {
+              description: "Free fixed sample; no payment required.",
+              content: { "application/json": { example: {
+                free_sample: true,
+                input: "hello world",
+                algorithm: "sha256",
+                input_bytes: 11,
+                hex: "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+                base64: "uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek=",
+                security_note: null,
+                next: { method: "POST", path: "/api/v1/hash", payment: "x402" }
+              } } }
+            }
+          }
+        }
+      },
       "/api/v1/normalize": { get: singleGet("normalizeProductPageByUrl", "Normalize one public product page"), post: singlePost("normalizeProductPage", "Normalize one public product page") },
       "/api/v1/extract-offer": { get: singleGet("extractOfferByUrl", "Extract compact offer facts"), post: singlePost("extractOffer", "Extract compact offer facts") },
       "/api/v1/validate": { get: singleGet("validateProductDataByUrl", "Score product-data quality"), post: singlePost("validateProductData", "Score product-data quality") },
