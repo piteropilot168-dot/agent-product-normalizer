@@ -224,22 +224,6 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
   app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.5" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
-  // PREVIEW ONLY: one-shot free registration of production origin with Agent402.
-  // Remove before merging to main.
-  app.get("/ops/register-agent402", async (_req, res, next) => {
-    try {
-      const response = await fetch("https://agent402.tools/api/index/register", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ origin: "https://agent-product-normalizer.vercel.app" }),
-      });
-      const body = await response.text();
-      res.status(response.status).type(response.headers.get("content-type") || "text/plain").send(body);
-    } catch (error) {
-      next(error);
-    }
-  });
-
   app.get("/llms.txt", (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     res.type("text/plain").send(`# Agent Utility API — x402 microservices for autonomous agents
@@ -313,7 +297,7 @@ Notes for agent callers:
     res.json({
       x402Version: 2,
       name: "Agent Product Normalizer",
-      description: "x402-paid microservices for autonomous agents: video context extraction, workflow utilities, safety helpers and commerce normalization.",
+      description: "x402-paid microservices for autonomous agents: low-cost hashing, video context extraction, workflow utilities, safety helpers and commerce normalization.",
       network: config.network,
       asset: "USDC",
       payTo: config.payTo,
