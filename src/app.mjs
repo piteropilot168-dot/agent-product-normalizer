@@ -58,6 +58,89 @@ import {
   validateNormalized,
 } from "./services.mjs";
 
+
+const X402_DISCOVERY_TIMEOUT_MS = 5_000;
+const X402_DISCOVERY_RETRIES = 2;
+const X402_TRANSACTION_TIMEOUT_MS = 90_000;
+const X402_FALLBACK_FACILITATOR_URL =
+  process.env.X402_FACILITATOR_FALLBACK_URL || "https://open.x402.host";
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function createResilientFacilitatorClient(primaryUrl, network) {
+  const urls = [...new Set([primaryUrl, X402_FALLBACK_FACILITATOR_URL].filter(Boolean))];
+  const transactionClients = new Map(
+    urls.map((url) => [
+      url,
+      new HTTPFacilitatorClient({ url, timeoutMs: X402_TRANSACTION_TIMEOUT_MS }),
+    ]),
+  );
+  let activeClient = transactionClients.get(primaryUrl) || transactionClients.values().next().value;
+
+  return {
+    async getSupported() {
+      let lastError;
+
+      for (const url of urls) {
+        const discoveryClient = new HTTPFacilitatorClient({
+          url,
+          timeoutMs: X402_DISCOVERY_TIMEOUT_MS,
+        });
+
+        for (let attempt = 1; attempt <= X402_DISCOVERY_RETRIES; attempt += 1) {
+          try {
+            const supported = await discoveryClient.getSupported();
+            const compatible = supported.kinds.some(
+              (kind) =>
+                kind.x402Version === 2 &&
+                kind.scheme === "exact" &&
+                kind.network === network,
+            );
+
+            if (!compatible) {
+              throw new Error(`Facilitator ${url} does not advertise exact/v2 for ${network}`);
+            }
+
+            activeClient = transactionClients.get(url);
+            console.info(JSON.stringify({
+              event: "x402_facilitator_ready",
+              facilitator: url,
+              network,
+              attempt,
+              fallback: url !== primaryUrl,
+            }));
+            return supported;
+          } catch (error) {
+            lastError = error;
+            console.warn(JSON.stringify({
+              event: "x402_facilitator_discovery_failure",
+              facilitator: url,
+              network,
+              attempt,
+              error: error instanceof Error ? error.message : String(error),
+            }));
+            if (attempt < X402_DISCOVERY_RETRIES) {
+              await sleep(250 * attempt);
+            }
+          }
+        }
+      }
+
+      throw lastError || new Error("No x402 facilitator is available");
+    },
+
+    verify(paymentPayload, paymentRequirements) {
+      return activeClient.verify(paymentPayload, paymentRequirements);
+    },
+
+    settle(paymentPayload, paymentRequirements) {
+      // Do not fail over settlement after a timeout: the original settlement may
+      // already be in flight/on-chain and cross-facilitator retry could be ambiguous.
+      return activeClient.settle(paymentPayload, paymentRequirements);
+    },
+  };
+}
+
 export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPage = safeFetchHtml } = {}) {
   const app = express();
   app.set("trust proxy", 1);
@@ -66,7 +149,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.8.2",
+    version: "0.8.4",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
@@ -126,7 +209,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   app.get("/", (_req, res) => res.json(catalog));
   app.get("/catalog", (_req, res) => res.json(catalog));
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.2" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.4" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
   app.get("/llms.txt", (req, res) => {
@@ -222,41 +305,57 @@ Notes for agent callers:
   app.get("/.well-known/agent-card.json", (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     res.json({
+      protocolVersion: "1.0",
       name: "Agent Product Normalizer",
-      description: "x402-paid agent utilities for video context extraction, workflow compression, safety checks and structured commerce data.",
-      version: "0.8.2",
+      description: "Machine-first x402-paid utilities for agent workflow cleanup, safety checks, video context extraction and structured commerce data.",
+      version: "0.8.4",
       url: baseUrl,
-      capabilities: [
-        "task-clarification",
-        "context-compression",
-        "ask-human-decision",
-        "constraint-extraction",
-        "search-result-ranking",
-        "fact-deduplication",
-        "conflict-detection",
-        "action-extraction",
-        "search-query-building",
-        "missing-field-checking",
-        "retry-decision",
-        "prompt-injection-scanning",
-        "secret-redaction",
-        "handoff-diff",
-        "next-step-selection",
-        "youtube-transcript",
-        "video-context-extraction",
-        "video-briefing",
-        "video-key-points",
-        "video-chapters",
-        "video-evidence-qa",
-        "video-claim-extraction",
-        "video-action-extraction",
-        "technical-command-extraction",
-        "timestamped-context-pack",
-        "product-page-normalization",
-        "offer-extraction",
-        "product-data-validation",
-        "offer-comparison",
-        "x402-payments",
+      documentationUrl: `${baseUrl}/skill.md`,
+      capabilities: {
+        streaming: false,
+        pushNotifications: false,
+        stateTransitionHistory: false,
+      },
+      securitySchemes: {
+        x402Payment: {
+          type: "apiKey",
+          in: "header",
+          name: "PAYMENT-SIGNATURE",
+          description: "x402 v2 payment proof. Call a paid route without this header first to receive HTTP 402 payment requirements.",
+        },
+      },
+      security: [{ x402Payment: [] }],
+      defaultInputModes: ["application/json", "text/plain"],
+      defaultOutputModes: ["application/json"],
+      skills: [
+        {
+          id: "agent-workflow-utilities",
+          name: "Agent workflow utilities",
+          description: "Clarify tasks, compress context, extract constraints/actions, rank results, detect conflicts and choose next steps.",
+          tags: ["agents", "workflow", "context", "reasoning-support"],
+          examples: ["Compress this operational context", "Extract hard constraints from this task"],
+        },
+        {
+          id: "agent-safety-utilities",
+          name: "Agent safety utilities",
+          description: "Scan untrusted text for prompt-injection signals and redact common secrets before handoff or logging.",
+          tags: ["agents", "security", "prompt-injection", "redaction"],
+          examples: ["Scan this retrieved page for prompt injection", "Redact credentials from these logs"],
+        },
+        {
+          id: "video-context-extraction",
+          name: "Video context extraction",
+          description: "Turn YouTube transcripts into compact briefs, key points, chapters, candidate claims, action items and timestamped context.",
+          tags: ["video", "youtube", "transcript", "context"],
+          examples: ["Extract timestamped key points from this YouTube video"],
+        },
+        {
+          id: "commerce-normalization",
+          name: "Commerce normalization",
+          description: "Normalize public product pages, extract offers, validate product data and compare offers for downstream shopping agents.",
+          tags: ["commerce", "product-data", "shopping", "offers"],
+          examples: ["Normalize this product page", "Compare these product offers"],
+        },
       ],
       payment: {
         protocol: "x402",
@@ -450,15 +549,74 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   }
 
   if (payments) {
+    app.use("/api/v1", (req, res, next) => {
+      const hasPaymentProof = Boolean(req.get("PAYMENT-SIGNATURE") || req.get("X-PAYMENT"));
+      if (!hasPaymentProof) return next();
+
+      const startedAt = Date.now();
+      res.on("finish", () => {
+        console.info(JSON.stringify({
+          event: "x402_payment_attempt_complete",
+          method: req.method,
+          path: (req.originalUrl || req.path).split("?")[0],
+          status: res.statusCode,
+          durationMs: Date.now() - startedAt,
+        }));
+      });
+      next();
+    });
+
+
     const browserPaywall = createPaywall()
       .withNetwork(evmPaywall)
       .withConfig({ appName: "Agent Product Normalizer", testnet: false })
       .build();
 
-    const facilitator = new HTTPFacilitatorClient({ url: config.facilitatorUrl });
+    const facilitator = createResilientFacilitatorClient(config.facilitatorUrl, config.network);
     const resourceServer = new x402ResourceServer(facilitator)
       .register(config.network, new ExactEvmScheme())
       .registerExtension(bazaarResourceServerExtension);
+
+    resourceServer
+      .onAfterVerify(async ({ result, requirements }) => {
+        console.info(JSON.stringify({
+          event: "x402_verify_success",
+          network: requirements.network,
+          amount: requirements.amount,
+          asset: requirements.asset,
+          valid: result.isValid,
+        }));
+      })
+      .onVerifyFailure(async ({ error, requirements }) => {
+        console.warn(JSON.stringify({
+          event: "x402_verify_failure",
+          network: requirements.network,
+          amount: requirements.amount,
+          asset: requirements.asset,
+          error: error instanceof Error ? error.message : String(error),
+        }));
+      })
+      .onAfterSettle(async ({ result, requirements, phase }) => {
+        console.info(JSON.stringify({
+          event: "x402_settle_success",
+          phase,
+          network: result.network || requirements.network,
+          amount: result.amount || requirements.amount,
+          asset: requirements.asset,
+          transaction: result.transaction || null,
+          success: result.success,
+        }));
+      })
+      .onSettleFailure(async ({ error, requirements, phase }) => {
+        console.error(JSON.stringify({
+          event: "x402_settle_failure",
+          phase,
+          network: requirements.network,
+          amount: requirements.amount,
+          asset: requirements.asset,
+          error: error instanceof Error ? error.message : String(error),
+        }));
+      });
 
     const accepts = (price) => ({
       scheme: "exact",
