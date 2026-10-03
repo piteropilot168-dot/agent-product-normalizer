@@ -258,3 +258,78 @@ export function contextFreshness(itemsRaw, { now, refreshAheadSeconds = 120 } = 
         : "Reuse all supplied context without refresh.",
   };
 }
+
+function finiteMoney(value, name, { required = true } = {}) {
+  if (!required && (value === undefined || value === null || value === "")) return 0;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0 || number > 1_000_000) {
+    throw new InputError(`${name} must be a finite number from 0 to 1000000`);
+  }
+  return number;
+}
+
+function probability(value, name) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0 || number > 1) {
+    throw new InputError(`${name} must be a number from 0 to 1`);
+  }
+  return number;
+}
+
+function assessCall(raw, index, latencyCostPerSecond) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new InputError(`${index} must be an object`);
+  const id = String(raw.id ?? index).trim();
+  if (!id || id.length > 200) throw new InputError(`${index}.id must be 1 to 200 characters`);
+  const cost = finiteMoney(raw.cost_usd, `${index}.cost_usd`);
+  const latencyMs = finiteMoney(raw.latency_ms, `${index}.latency_ms`, { required: false });
+  const successProbability = probability(raw.success_probability, `${index}.success_probability`);
+  const valueIfSuccess = finiteMoney(raw.value_if_success_usd, `${index}.value_if_success_usd`);
+  const lossIfFailure = finiteMoney(raw.loss_if_failure_usd, `${index}.loss_if_failure_usd`, { required: false });
+  const latencyCost = (latencyMs / 1000) * latencyCostPerSecond;
+  const expectedGrossValue = successProbability * valueIfSuccess - (1 - successProbability) * lossIfFailure;
+  const expectedNetValue = expectedGrossValue - cost - latencyCost;
+  const totalCost = cost + latencyCost;
+  return {
+    id,
+    cost_usd: cost,
+    latency_ms: latencyMs,
+    success_probability: successProbability,
+    expected_gross_value_usd: Number(expectedGrossValue.toFixed(6)),
+    latency_cost_usd: Number(latencyCost.toFixed(6)),
+    expected_net_value_usd: Number(expectedNetValue.toFixed(6)),
+    roi: totalCost > 0 ? Number((expectedNetValue / totalCost).toFixed(4)) : null,
+  };
+}
+
+export function callValueGate(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new InputError("input must be a JSON object");
+  const remainingBudget = finiteMoney(input.remaining_budget_usd, "remaining_budget_usd");
+  const latencyCostPerSecond = finiteMoney(input.latency_cost_per_second_usd, "latency_cost_per_second_usd", { required: false });
+  const threshold = finiteMoney(input.min_expected_net_value_usd, "min_expected_net_value_usd", { required: false });
+  const proposed = assessCall({ ...input, id: input.id || "proposed-call" }, "proposed_call", latencyCostPerSecond);
+  const alternativesRaw = input.alternatives ?? [];
+  if (!Array.isArray(alternativesRaw) || alternativesRaw.length > 20) throw new InputError("alternatives must be an array with at most 20 items");
+  const alternatives = alternativesRaw.map((item, i) => assessCall(item, `alternatives[${i}]`, latencyCostPerSecond));
+  const options = [proposed, ...alternatives];
+  if (new Set(options.map(option => option.id)).size !== options.length) throw new InputError("call ids must be unique");
+  const assessed = options.map(option => ({ ...option, within_budget: option.cost_usd + option.latency_cost_usd <= remainingBudget }));
+  const eligible = assessed.filter(option => option.within_budget && option.expected_net_value_usd >= threshold)
+    .sort((a, b) => b.expected_net_value_usd - a.expected_net_value_usd || a.cost_usd - b.cost_usd || a.id.localeCompare(b.id));
+  const required = input.required === true;
+  let decision;
+  let selected = null;
+  if (required && !assessed[0].within_budget) decision = "ASK_HUMAN";
+  else if (required) { decision = "EXECUTE"; selected = assessed[0]; }
+  else if (!eligible.length) decision = "SKIP";
+  else { selected = eligible[0]; decision = selected.id === proposed.id ? "EXECUTE" : "USE_ALTERNATIVE"; }
+  return {
+    decision,
+    selected_call_id: selected?.id ?? null,
+    expected_net_value_usd: selected?.expected_net_value_usd ?? null,
+    budget_after_usd: selected ? Number((remainingBudget - selected.cost_usd - selected.latency_cost_usd).toFixed(6)) : remainingBudget,
+    proposed_call: assessed[0],
+    alternatives: assessed.slice(1),
+    assumptions: { latency_cost_per_second_usd: latencyCostPerSecond, min_expected_net_value_usd: threshold },
+    next_action: decision === "EXECUTE" ? `Execute ${selected.id}.` : decision === "USE_ALTERNATIVE" ? `Use ${selected.id} instead of ${proposed.id}.` : decision === "ASK_HUMAN" ? "The required call exceeds the remaining budget; request approval or more budget." : "Skip the call; no affordable option meets the expected-value threshold.",
+  };
+}
