@@ -15,6 +15,8 @@ import {
   taskGateDiscovery,
   contextFreshnessBrowserDiscovery,
   contextFreshnessDiscovery,
+  callValueGateBrowserDiscovery,
+  callValueGateDiscovery,
   compressContextBrowserDiscovery,
   compressContextDiscovery,
   shouldAskHumanBrowserDiscovery,
@@ -53,7 +55,7 @@ import { normalizeProductPage } from "./normalize.mjs";
 import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, taskGate, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
-import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep, contextFreshness } from "./agentops.mjs";
+import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep, contextFreshness, callValueGate } from "./agentops.mjs";
 import { hashText } from "./utility.mjs";
 import { createResilientFacilitatorClient } from "./facilitator.mjs";
 import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
@@ -74,7 +76,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.8.5",
+    version: "0.8.6",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
@@ -86,6 +88,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       { id: "clarify", name: "Agent Task Clarifier", description: "Turn a vague or messy request into an execution-ready goal, constraints, ambiguity signals and one focused question only when needed.", tags: ["agents", "intent", "clarification", "constraints", "workflow"], methods: ["GET", "POST"], path: "/api/v1/clarify", price: config.prices.clarify },
       { id: "task-gate", name: "Agent Task Gate", description: "Preflight an autonomous action and return PROCEED, CLARIFY, ASK_HUMAN or STOP with missing fields, risks and the next safe action.", tags: ["agents", "preflight", "decision", "autonomy", "safety", "workflow"], methods: ["GET", "POST"], path: "/api/v1/task-gate", price: config.prices.taskGate },
       { id: "context-freshness", name: "Agent Context Freshness Gate", description: "Classify context as fresh, near expiry or stale and return a minimal refresh plan so long-running agents avoid redundant fetches, tool calls and context tokens.", tags: ["agents", "context", "freshness", "ttl", "cache", "stale-context", "tool-calls"], methods: ["GET", "POST"], path: "/api/v1/context-freshness", price: config.prices.contextFreshness },
+      { id: "call-value-gate", name: "Agent Call Value Gate", description: "Decide whether the next model, tool or human call is worth its cost by comparing expected net value, success probability, latency cost, alternatives and remaining budget.", tags: ["agents", "expected-value", "budget", "pre-call", "tool-call", "model-routing", "cost-control", "roi"], methods: ["GET", "POST"], path: "/api/v1/call-value-gate", price: config.prices.callValueGate },
       { id: "compress-context", methods: ["GET", "POST"], path: "/api/v1/compress-context", price: config.prices.compressContext },
       { id: "should-ask-human", methods: ["GET", "POST"], path: "/api/v1/should-ask-human", price: config.prices.shouldAskHuman },
       { id: "extract-constraints", methods: ["GET", "POST"], path: "/api/v1/extract-constraints", price: config.prices.extractConstraints },
@@ -117,6 +120,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       validate: "/test-validate",
       compare: "/test-compare",
       clarify: "/test-clarify",
+      call_value_gate: "/test-call-value-gate",
       compress_context: "/test-compress-context",
       should_ask_human: "/test-should-ask-human",
       extract_constraints: "/test-extract-constraints",
@@ -138,7 +142,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   app.get("/", (_req, res) => res.json(catalog));
   app.get("/catalog", (_req, res) => res.json(catalog));
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.5" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.6" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
   app.get("/llms.txt", (req, res) => {
@@ -169,6 +173,7 @@ Agent workflow utilities:
 - GET/POST /api/v1/task-gate — ${config.prices.taskGate} — gate an autonomous action as PROCEED, CLARIFY, ASK_HUMAN or STOP with risks and next action.
 - Free sample: GET /api/v1/task-gate/sample returns a fixed preflight example without payment; use GET/POST /api/v1/task-gate at ${config.prices.taskGate} for your own task.
 - GET/POST /api/v1/context-freshness — ${config.prices.contextFreshness} — detect stale or near-expiry context and return the smallest refresh plan instead of re-fetching everything.
+- GET/POST /api/v1/call-value-gate — ${config.prices.callValueGate} — decide whether a proposed model, tool or human call creates enough expected value for its cost and remaining budget.
 - GET/POST /api/v1/compress-context — ${config.prices.compressContext} — compress long agent context into compact operational state.
 - GET/POST /api/v1/should-ask-human — ${config.prices.shouldAskHuman} — decide whether to ask the human or safely infer and continue.
 - GET/POST /api/v1/extract-constraints — ${config.prices.extractConstraints} — split a request into hard constraints, preferences, exclusions, budgets and deadlines.
@@ -259,7 +264,7 @@ Notes for agent callers:
       protocolVersion: "1.0",
       name: "Agent Product Normalizer",
       description: "Machine-first x402-paid utilities for agent workflow cleanup, safety checks, video context extraction and structured commerce data.",
-      version: "0.8.5",
+      version: "0.8.6",
       url: baseUrl,
       documentationUrl: `${baseUrl}/skill.md`,
       capabilities: {
@@ -289,9 +294,9 @@ Notes for agent callers:
         {
           id: "agent-workflow-utilities",
           name: "Agent workflow utilities and Task Gate",
-          description: "Preflight autonomous actions with Task Gate as PROCEED, CLARIFY, ASK_HUMAN or STOP; also clarify tasks, compress context, extract constraints/actions, rank results and detect conflicts. Try GET /api/v1/task-gate/sample free, then use GET/POST /api/v1/task-gate for your own task.",
-          tags: ["agents", "workflow", "preflight", "autonomy", "task-gate", "context", "reasoning-support"],
-          examples: ["Preflight this agent action before execution", "Compress this operational context", "Extract hard constraints from this task"],
+          description: "Preflight autonomous actions with Task Gate, avoid stale context with Context Freshness, and decide whether the next model, tool or human call is worth its expected cost with Call Value Gate. Also clarify tasks, compress context, extract constraints/actions, rank results and detect conflicts.",
+          tags: ["agents", "workflow", "preflight", "autonomy", "task-gate", "context", "expected-value", "budget", "cost-control", "reasoning-support"],
+          examples: ["Preflight this agent action before execution", "Decide whether this next tool call is worth its cost", "Compress this operational context"],
         },
         {
           id: "agent-safety-utilities",
@@ -486,6 +491,10 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   });
   app.get("/test-clarify", (_req, res) => {
     res.redirect(`/api/v1/clarify?text=${encodeURIComponent("Find me a good black laptop under $1200, preferably light.")}`);
+  });
+  app.get("/test-call-value-gate", (_req, res) => {
+    const input = { id: "remote-search", cost_usd: 0.02, latency_ms: 1500, success_probability: 0.65, value_if_success_usd: 0.1, loss_if_failure_usd: 0.01, remaining_budget_usd: 0.05, latency_cost_per_second_usd: 0.002 };
+    res.redirect(`/api/v1/call-value-gate?input=${encodeURIComponent(JSON.stringify(input))}`);
   });
   app.get("/test-compress-context", (_req, res) => {
     res.redirect(`/api/v1/compress-context?context=${encodeURIComponent("We need to ship Friday. Budget must stay under $500. Next, verify deployment. We are waiting on DNS.")}`);
@@ -716,6 +725,8 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       },
       "GET /api/v1/context-freshness": { accepts: accepts(config.prices.contextFreshness), description: "Detect stale and near-expiry agent context and return a minimal refresh plan to avoid redundant tool calls and tokens", mimeType: "application/json", serviceName: "Agent Context Freshness Gate", tags: ["agents","context","freshness","ttl","cache","stale-context","tool-calls"], extensions: contextFreshnessBrowserDiscovery },
       "POST /api/v1/context-freshness": { accepts: accepts(config.prices.contextFreshness), description: "Detect stale and near-expiry agent context and return a minimal refresh plan to avoid redundant tool calls and tokens", mimeType: "application/json", serviceName: "Agent Context Freshness Gate", tags: ["agents","context","freshness","ttl","cache","stale-context","tool-calls"], extensions: contextFreshnessDiscovery },
+      "GET /api/v1/call-value-gate": { accepts: accepts(config.prices.callValueGate), description: "Decide whether the next model, tool or human call is worth its cost, latency and risk within the remaining budget", mimeType: "application/json", serviceName: "Agent Call Value Gate", tags: ["agents","expected-value","budget","pre-call","tool-call","model-routing","cost-control","roi"], extensions: callValueGateBrowserDiscovery },
+      "POST /api/v1/call-value-gate": { accepts: accepts(config.prices.callValueGate), description: "Decide whether the next model, tool or human call is worth its cost, latency and risk within the remaining budget", mimeType: "application/json", serviceName: "Agent Call Value Gate", tags: ["agents","expected-value","budget","pre-call","tool-call","model-routing","cost-control","roi"], extensions: callValueGateDiscovery },
       "GET /api/v1/compress-context": {
         accepts: accepts(config.prices.compressContext),
         description: "Compress long notes or conversation context into compact operational state for agent handoffs",
@@ -949,6 +960,18 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   };
   app.get("/api/v1/context-freshness", contextFreshnessHandler);
   app.post("/api/v1/context-freshness", contextFreshnessHandler);
+
+  const callValueGateHandler = (req, res, next) => {
+    try {
+      let source = req.method === "GET" ? req.query?.input : req.body;
+      if (req.method === "GET") {
+        try { source = JSON.parse(source); } catch { throw new InputError("input must be a valid JSON object"); }
+      }
+      res.set("cache-control", "no-store").json(callValueGate(source));
+    } catch (error) { next(error); }
+  };
+  app.get("/api/v1/call-value-gate", callValueGateHandler);
+  app.post("/api/v1/call-value-gate", callValueGateHandler);
 
   const constraintsHandler = (req, res, next) => {
     try {
