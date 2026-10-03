@@ -12,6 +12,7 @@ export const config = {
     clarify: process.env.X402_PRICE_CLARIFY || "$0.005",
     taskGate: process.env.X402_PRICE_TASK_GATE || "$0.004",
     contextFreshness: process.env.X402_PRICE_CONTEXT_FRESHNESS || "$0.002",
+    callValueGate: process.env.X402_PRICE_CALL_VALUE_GATE || "$0.003",
     compressContext: process.env.X402_PRICE_COMPRESS_CONTEXT || "$0.005",
     shouldAskHuman: process.env.X402_PRICE_SHOULD_ASK_HUMAN || "$0.003",
     extractConstraints: process.env.X402_PRICE_EXTRACT_CONSTRAINTS || "$0.003",
