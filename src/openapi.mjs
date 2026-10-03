@@ -100,6 +100,50 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         get: textGet("clarifyHumanTaskByText", "Turn a messy human request into an execution-ready task", "text"),
         post: textPost("clarifyHumanTask", "Turn a messy human request into an execution-ready task", "text"),
       },
+      "/api/v1/task-gate/sample": {
+        get: {
+          operationId: "getFreeTaskGateSample",
+          summary: "Get a free fixed Task Gate preflight example",
+          description: "Returns a deterministic Task Gate response so agents can inspect the output schema before paying.",
+          responses: {
+            "200": {
+              description: "Free fixed sample; no payment required.",
+              content: {
+                "application/json": {
+                  example: {
+                    free_sample: true,
+                    decision: "PROCEED",
+                    goal: "Summarize these notes into five bullets",
+                    missing_fields: [],
+                    risks: [],
+                    hard_constraints: [],
+                    safe_to_execute: true,
+                    next_action: "summarize notes",
+                    next: {
+                      method: "POST",
+                      path: "/api/v1/task-gate",
+                      payment: "x402",
+                      price: "$0.004"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/task-gate": {
+        get: { operationId: "taskGateByTask", summary: "Gate an agent action: PROCEED, CLARIFY, ASK_HUMAN or STOP", parameters: [
+          { name: "task", in: "query", required: true, schema: { type: "string", maxLength: 10000 } },
+          { name: "known_context", in: "query", required: false, schema: { type: "string", maxLength: 15000 } },
+          { name: "proposed_action", in: "query", required: false, schema: { type: "string", maxLength: 4000 } }
+        ], responses },
+        post: { operationId: "taskGate", summary: "Gate an agent action: PROCEED, CLARIFY, ASK_HUMAN or STOP", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["task"], properties: {
+          task: { type: "string", maxLength: 10000 },
+          known_context: { type: "string", maxLength: 15000 },
+          proposed_action: { type: "string", maxLength: 4000 }
+        }, additionalProperties: false } } } }, responses },
+      },
       "/api/v1/extract-constraints": {
         get: textGet("extractTaskConstraintsByText", "Extract hard constraints, preferences, exclusions, budgets and deadlines", "text"),
         post: textPost("extractTaskConstraints", "Extract hard constraints, preferences, exclusions, budgets and deadlines", "text"),

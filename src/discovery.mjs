@@ -120,6 +120,28 @@ const constraintsOutput = { example: { hard_constraints: ["must be under $1200"]
 export const extractConstraintsBrowserDiscovery = textGet("text", "Human request containing hard/soft constraints", "Laptop under $1200, black if possible, no refurbished units.", constraintsOutput);
 export const extractConstraintsDiscovery = textPost("text", "Human request containing hard/soft constraints", "Laptop under $1200, black if possible, no refurbished units.", constraintsOutput);
 
+const taskGateOutput = { example: { decision: "ASK_HUMAN", goal: "Buy the cheapest laptop", missing_fields: [], risks: ["external-or-irreversible-action"], hard_constraints: [], safe_to_execute: false, next_action: "Confirm the exact action and target before execution." } };
+export const taskGateBrowserDiscovery = declareDiscoveryExtension({
+  method: "GET",
+  input: { task: "Buy the cheapest laptop", known_context: "", proposed_action: "purchase" },
+  inputSchema: { type: "object", properties: {
+    task: textProperty("Task the agent is considering", 10000),
+    known_context: textProperty("Relevant known context", 15000),
+    proposed_action: textProperty("Concrete next action the agent wants to execute", 4000)
+  }, required: ["task"], additionalProperties: false },
+  output: taskGateOutput,
+});
+export const taskGateDiscovery = declareDiscoveryExtension({
+  method: "POST", bodyType: "json",
+  input: { task: "Buy the cheapest laptop", known_context: "", proposed_action: "purchase" },
+  inputSchema: { type: "object", properties: {
+    task: textProperty("Task the agent is considering", 10000),
+    known_context: textProperty("Relevant known context", 15000),
+    proposed_action: textProperty("Concrete next action the agent wants to execute", 4000)
+  }, required: ["task"], additionalProperties: false },
+  output: taskGateOutput,
+});
+
 const compressOutput = { example: { objective: "Ship release", compact_state: ["Release must be live Friday."], decisions: [], constraints: ["Release must be live Friday."], blockers: [], next_actions: [], stats: { input_chars: 1200, output_chars: 240, items: 6 } } };
 export const compressContextBrowserDiscovery = textGet("context", "Long agent conversation, notes, or handoff context", "We need to ship Friday. Budget is fixed. Next, verify deployment.", compressOutput);
 export const compressContextDiscovery = textPost("context", "Long agent conversation, notes, or handoff context", "We need to ship Friday. Budget is fixed. Next, verify deployment.", compressOutput, {

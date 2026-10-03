@@ -125,6 +125,46 @@ export function clarifyTask(rawInput) {
   };
 }
 
+export function taskGate({ task, knownContext = "", proposedAction = "" }) {
+  const t = text(task, "task", 10_000);
+  const context = typeof knownContext === "string" ? knownContext.slice(0, 15_000) : "";
+  const action = typeof proposedAction === "string" ? proposedAction.slice(0, 4_000) : "";
+  const clarified = clarifyTask(t);
+  const human = shouldAskHuman({ task: t, knownContext: context, proposedAssumption: action });
+
+  const missing = [];
+  if (clarified.ambiguity_signals.includes("missing-budget")) missing.push("budget");
+  if (clarified.ambiguity_signals.includes("missing-deadline")) missing.push("deadline");
+
+  let decision = "PROCEED";
+  if (human.risk === "high") decision = "STOP";
+  else if (human.ask_user) decision = "ASK_HUMAN";
+  else if (clarified.must_ask_user || missing.length) decision = "CLARIFY";
+
+  const risks = unique([
+    ...human.reasons,
+    ...clarified.ambiguity_signals,
+  ]);
+
+  const nextAction = decision === "PROCEED"
+    ? (action || clarified.execution_hint)
+    : decision === "CLARIFY"
+      ? (clarified.question_if_needed || "Clarify the missing material constraint.")
+      : decision === "ASK_HUMAN"
+        ? (human.question_if_needed || "Ask the human before execution.")
+        : "Do not execute the proposed action until the high-risk condition is resolved.";
+
+  return {
+    decision,
+    goal: clarified.goal,
+    missing_fields: missing,
+    risks,
+    hard_constraints: clarified.hard_constraints,
+    safe_to_execute: decision === "PROCEED",
+    next_action: nextAction,
+  };
+}
+
 export function extractConstraints(rawInput) {
   const input = text(rawInput, "text");
   const parts = clauses(input);

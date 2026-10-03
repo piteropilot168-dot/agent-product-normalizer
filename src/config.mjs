@@ -10,6 +10,7 @@ export const config = {
     validate: process.env.X402_PRICE_VALIDATE || "$0.02",
     compare: process.env.X402_PRICE_COMPARE || "$0.05",
     clarify: process.env.X402_PRICE_CLARIFY || "$0.005",
+    taskGate: process.env.X402_PRICE_TASK_GATE || "$0.004",
     compressContext: process.env.X402_PRICE_COMPRESS_CONTEXT || "$0.005",
     shouldAskHuman: process.env.X402_PRICE_SHOULD_ASK_HUMAN || "$0.003",
     extractConstraints: process.env.X402_PRICE_EXTRACT_CONSTRAINTS || "$0.003",
