@@ -11,6 +11,8 @@ import {
   compareDiscovery,
   clarifyBrowserDiscovery,
   clarifyDiscovery,
+  taskGateBrowserDiscovery,
+  taskGateDiscovery,
   compressContextBrowserDiscovery,
   compressContextDiscovery,
   shouldAskHumanBrowserDiscovery,
@@ -48,7 +50,7 @@ import {
 import { normalizeProductPage } from "./normalize.mjs";
 import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
-import { clarifyTask, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
+import { clarifyTask, taskGate, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
 import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep } from "./agentops.mjs";
 import { hashText } from "./utility.mjs";
 import { createResilientFacilitatorClient } from "./facilitator.mjs";
@@ -80,6 +82,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       { id: "validate", methods: ["GET", "POST"], path: "/api/v1/validate", price: config.prices.validate },
       { id: "compare", methods: ["GET", "POST"], path: "/api/v1/compare", price: config.prices.compare },
       { id: "clarify", methods: ["GET", "POST"], path: "/api/v1/clarify", price: config.prices.clarify },
+      { id: "task-gate", methods: ["GET", "POST"], path: "/api/v1/task-gate", price: config.prices.taskGate },
       { id: "compress-context", methods: ["GET", "POST"], path: "/api/v1/compress-context", price: config.prices.compressContext },
       { id: "should-ask-human", methods: ["GET", "POST"], path: "/api/v1/should-ask-human", price: config.prices.shouldAskHuman },
       { id: "extract-constraints", methods: ["GET", "POST"], path: "/api/v1/extract-constraints", price: config.prices.extractConstraints },
@@ -160,6 +163,7 @@ Recommended video routes:
 
 Agent workflow utilities:
 - GET/POST /api/v1/clarify — ${config.prices.clarify} — turn a messy human request into an execution-ready task.
+- GET/POST /api/v1/task-gate — ${config.prices.taskGate} — gate an autonomous action as PROCEED, CLARIFY, ASK_HUMAN or STOP with risks and next action.
 - GET/POST /api/v1/compress-context — ${config.prices.compressContext} — compress long agent context into compact operational state.
 - GET/POST /api/v1/should-ask-human — ${config.prices.shouldAskHuman} — decide whether to ask the human or safely infer and continue.
 - GET/POST /api/v1/extract-constraints — ${config.prices.extractConstraints} — split a request into hard constraints, preferences, exclusions, budgets and deadlines.
@@ -680,6 +684,22 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
         tags: ["agents", "intent", "clarification", "workflow"],
         extensions: clarifyDiscovery,
       },
+      "GET /api/v1/task-gate": {
+        accepts: accepts(config.prices.taskGate),
+        description: "Preflight an autonomous agent action and return PROCEED, CLARIFY, ASK_HUMAN or STOP with missing fields, risks and next action",
+        mimeType: "application/json",
+        serviceName: "Agent Task Gate",
+        tags: ["agents", "preflight", "decision", "autonomy", "safety", "workflow"],
+        extensions: taskGateBrowserDiscovery,
+      },
+      "POST /api/v1/task-gate": {
+        accepts: accepts(config.prices.taskGate),
+        description: "Preflight an autonomous agent action and return PROCEED, CLARIFY, ASK_HUMAN or STOP with missing fields, risks and next action",
+        mimeType: "application/json",
+        serviceName: "Agent Task Gate",
+        tags: ["agents", "preflight", "decision", "autonomy", "safety", "workflow"],
+        extensions: taskGateDiscovery,
+      },
       "GET /api/v1/compress-context": {
         accepts: accepts(config.prices.compressContext),
         description: "Compress long notes or conversation context into compact operational state for agent handoffs",
@@ -870,6 +890,19 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   };
   app.get("/api/v1/clarify", clarifyHandler);
   app.post("/api/v1/clarify", clarifyHandler);
+
+  const taskGateHandler = (req, res, next) => {
+    try {
+      const source = req.method === "GET" ? req.query : req.body;
+      res.set("cache-control", "no-store").json(taskGate({
+        task: source?.task,
+        knownContext: source?.known_context ?? "",
+        proposedAction: source?.proposed_action ?? "",
+      }));
+    } catch (error) { next(error); }
+  };
+  app.get("/api/v1/task-gate", taskGateHandler);
+  app.post("/api/v1/task-gate", taskGateHandler);
 
   const constraintsHandler = (req, res, next) => {
     try {
