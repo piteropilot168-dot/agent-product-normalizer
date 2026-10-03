@@ -144,6 +144,18 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           proposed_action: { type: "string", maxLength: 4000 }
         }, additionalProperties: false } } } }, responses },
       },
+      "/api/v1/context-freshness": {
+        get: { operationId: "contextFreshnessFromJson", summary: "Find stale context and create a minimal refresh plan", description: "Avoid re-fetching an agent's entire context. Classifies timestamped context items as fresh, near expiry or stale and returns only the items that need refresh.", parameters: [
+          { name: "items", in: "query", required: true, schema: { type: "string", maxLength: 40000, description: "JSON array of items with id, captured_at and ttl_seconds" } },
+          { name: "now", in: "query", required: false, schema: { type: "string", format: "date-time" } },
+          { name: "refresh_ahead_seconds", in: "query", required: false, schema: { type: "integer", minimum: 0, maximum: 86400, default: 120 } }
+        ], responses },
+        post: { operationId: "contextFreshness", summary: "Find stale context and create a minimal refresh plan", description: "Avoid re-fetching an agent's entire context. Classifies timestamped context items as fresh, near expiry or stale and returns only the items that need refresh.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["items"], properties: {
+          items: { type: "array", minItems: 1, maxItems: 100, items: { type: "object", required: ["id","captured_at","ttl_seconds"], properties: { id: { type: "string", minLength: 1, maxLength: 200 }, captured_at: { type: "string", format: "date-time" }, ttl_seconds: { type: "integer", minimum: 1, maximum: 31536000 }, required: { type: "boolean", default: false } }, additionalProperties: false } },
+          now: { type: "string", format: "date-time" },
+          refresh_ahead_seconds: { type: "integer", minimum: 0, maximum: 86400, default: 120 }
+        }, additionalProperties: false } } } }, responses },
+      },
       "/api/v1/extract-constraints": {
         get: textGet("extractTaskConstraintsByText", "Extract hard constraints, preferences, exclusions, budgets and deadlines", "text"),
         post: textPost("extractTaskConstraints", "Extract hard constraints, preferences, exclusions, budgets and deadlines", "text"),
