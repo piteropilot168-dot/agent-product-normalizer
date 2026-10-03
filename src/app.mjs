@@ -13,6 +13,8 @@ import {
   clarifyDiscovery,
   taskGateBrowserDiscovery,
   taskGateDiscovery,
+  contextFreshnessBrowserDiscovery,
+  contextFreshnessDiscovery,
   compressContextBrowserDiscovery,
   compressContextDiscovery,
   shouldAskHumanBrowserDiscovery,
@@ -51,7 +53,7 @@ import { normalizeProductPage } from "./normalize.mjs";
 import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, taskGate, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
-import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep } from "./agentops.mjs";
+import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep, contextFreshness } from "./agentops.mjs";
 import { hashText } from "./utility.mjs";
 import { createResilientFacilitatorClient } from "./facilitator.mjs";
 import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
@@ -83,6 +85,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       { id: "compare", methods: ["GET", "POST"], path: "/api/v1/compare", price: config.prices.compare },
       { id: "clarify", name: "Agent Task Clarifier", description: "Turn a vague or messy request into an execution-ready goal, constraints, ambiguity signals and one focused question only when needed.", tags: ["agents", "intent", "clarification", "constraints", "workflow"], methods: ["GET", "POST"], path: "/api/v1/clarify", price: config.prices.clarify },
       { id: "task-gate", name: "Agent Task Gate", description: "Preflight an autonomous action and return PROCEED, CLARIFY, ASK_HUMAN or STOP with missing fields, risks and the next safe action.", tags: ["agents", "preflight", "decision", "autonomy", "safety", "workflow"], methods: ["GET", "POST"], path: "/api/v1/task-gate", price: config.prices.taskGate },
+      { id: "context-freshness", name: "Agent Context Freshness Gate", description: "Classify context as fresh, near expiry or stale and return a minimal refresh plan so long-running agents avoid redundant fetches, tool calls and context tokens.", tags: ["agents", "context", "freshness", "ttl", "cache", "stale-context", "tool-calls"], methods: ["GET", "POST"], path: "/api/v1/context-freshness", price: config.prices.contextFreshness },
       { id: "compress-context", methods: ["GET", "POST"], path: "/api/v1/compress-context", price: config.prices.compressContext },
       { id: "should-ask-human", methods: ["GET", "POST"], path: "/api/v1/should-ask-human", price: config.prices.shouldAskHuman },
       { id: "extract-constraints", methods: ["GET", "POST"], path: "/api/v1/extract-constraints", price: config.prices.extractConstraints },
@@ -165,6 +168,7 @@ Agent workflow utilities:
 - GET/POST /api/v1/clarify — ${config.prices.clarify} — turn a messy human request into an execution-ready task.
 - GET/POST /api/v1/task-gate — ${config.prices.taskGate} — gate an autonomous action as PROCEED, CLARIFY, ASK_HUMAN or STOP with risks and next action.
 - Free sample: GET /api/v1/task-gate/sample returns a fixed preflight example without payment; use GET/POST /api/v1/task-gate at ${config.prices.taskGate} for your own task.
+- GET/POST /api/v1/context-freshness — ${config.prices.contextFreshness} — detect stale or near-expiry context and return the smallest refresh plan instead of re-fetching everything.
 - GET/POST /api/v1/compress-context — ${config.prices.compressContext} — compress long agent context into compact operational state.
 - GET/POST /api/v1/should-ask-human — ${config.prices.shouldAskHuman} — decide whether to ask the human or safely infer and continue.
 - GET/POST /api/v1/extract-constraints — ${config.prices.extractConstraints} — split a request into hard constraints, preferences, exclusions, budgets and deadlines.
@@ -710,6 +714,8 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
         tags: ["agents", "preflight", "decision", "autonomy", "safety", "workflow"],
         extensions: taskGateDiscovery,
       },
+      "GET /api/v1/context-freshness": { accepts: accepts(config.prices.contextFreshness), description: "Detect stale and near-expiry agent context and return a minimal refresh plan to avoid redundant tool calls and tokens", mimeType: "application/json", serviceName: "Agent Context Freshness Gate", tags: ["agents","context","freshness","ttl","cache","stale-context","tool-calls"], extensions: contextFreshnessBrowserDiscovery },
+      "POST /api/v1/context-freshness": { accepts: accepts(config.prices.contextFreshness), description: "Detect stale and near-expiry agent context and return a minimal refresh plan to avoid redundant tool calls and tokens", mimeType: "application/json", serviceName: "Agent Context Freshness Gate", tags: ["agents","context","freshness","ttl","cache","stale-context","tool-calls"], extensions: contextFreshnessDiscovery },
       "GET /api/v1/compress-context": {
         accepts: accepts(config.prices.compressContext),
         description: "Compress long notes or conversation context into compact operational state for agent handoffs",
@@ -930,6 +936,19 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   };
   app.get("/api/v1/task-gate", taskGateHandler);
   app.post("/api/v1/task-gate", taskGateHandler);
+
+  const contextFreshnessHandler = (req, res, next) => {
+    try {
+      const source = req.method === "GET" ? req.query : req.body;
+      let items = source?.items;
+      if (req.method === "GET" && typeof items === "string") {
+        try { items = JSON.parse(items); } catch { throw new InputError("items must be a valid JSON array"); }
+      }
+      res.set("cache-control", "no-store").json(contextFreshness(items, { now: source?.now, refreshAheadSeconds: source?.refresh_ahead_seconds ?? 120 }));
+    } catch (error) { next(error); }
+  };
+  app.get("/api/v1/context-freshness", contextFreshnessHandler);
+  app.post("/api/v1/context-freshness", contextFreshnessHandler);
 
   const constraintsHandler = (req, res, next) => {
     try {
