@@ -35,7 +35,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
     openapi: "3.1.0",
     info: {
       title: "Agent Product Normalizer + Video Intelligence API",
-      version: "0.8.5",
+      version: "0.8.6",
       description: "Paid x402 microservices for autonomous agents: high-frequency hashing, video context extraction, workflow compression, safety helpers and commerce normalization. USDC on Base. Every service supports GET plus agent-friendly POST.",
     },
     servers: [{ url: baseUrl }],
@@ -154,6 +154,12 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           items: { type: "array", minItems: 1, maxItems: 100, items: { type: "object", required: ["id","captured_at","ttl_seconds"], properties: { id: { type: "string", minLength: 1, maxLength: 200 }, captured_at: { type: "string", format: "date-time" }, ttl_seconds: { type: "integer", minimum: 1, maximum: 31536000 }, required: { type: "boolean", default: false } }, additionalProperties: false } },
           now: { type: "string", format: "date-time" },
           refresh_ahead_seconds: { type: "integer", minimum: 0, maximum: 86400, default: 120 }
+        }, additionalProperties: false } } } }, responses },
+      },
+      "/api/v1/call-value-gate": {
+        get: { operationId: "callValueGateFromJson", summary: "Decide whether the next agent call is worth its cost", description: "Compare expected net value, success probability, latency cost, alternatives and remaining budget before an agent makes a model, tool or human call.", parameters: [{ name: "input", in: "query", required: true, schema: { type: "string", maxLength: 40000, description: "JSON object with the proposed call, budget and alternatives" } }], responses },
+        post: { operationId: "callValueGate", summary: "Decide whether the next agent call is worth its cost", description: "Compare expected net value, success probability, latency cost, alternatives and remaining budget before an agent makes a model, tool or human call.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["cost_usd","success_probability","value_if_success_usd","remaining_budget_usd"], properties: {
+          id: { type: "string", maxLength: 200 }, cost_usd: { type: "number", minimum: 0 }, latency_ms: { type: "number", minimum: 0 }, success_probability: { type: "number", minimum: 0, maximum: 1 }, value_if_success_usd: { type: "number", minimum: 0 }, loss_if_failure_usd: { type: "number", minimum: 0 }, remaining_budget_usd: { type: "number", minimum: 0 }, latency_cost_per_second_usd: { type: "number", minimum: 0 }, min_expected_net_value_usd: { type: "number", minimum: 0 }, required: { type: "boolean", default: false }, alternatives: { type: "array", maxItems: 20, items: { type: "object", required: ["id","cost_usd","success_probability","value_if_success_usd"], properties: { id: { type: "string", maxLength: 200 }, cost_usd: { type: "number", minimum: 0 }, latency_ms: { type: "number", minimum: 0 }, success_probability: { type: "number", minimum: 0, maximum: 1 }, value_if_success_usd: { type: "number", minimum: 0 }, loss_if_failure_usd: { type: "number", minimum: 0 } }, additionalProperties: false } }
         }, additionalProperties: false } } } }, responses },
       },
       "/api/v1/extract-constraints": {
