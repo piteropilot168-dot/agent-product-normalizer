@@ -186,3 +186,75 @@ export function chooseNextStep(stateRaw, actionsRaw) {
   }).sort((a,b) => b.score - a.score || a.index - b.index);
   return { selected_index: scored[0].index, selected_action: scored[0].action, confidence: scored[0].score > 2 ? "medium" : "low", ranking: scored };
 }
+
+export function contextFreshness(itemsRaw, { now, refreshAheadSeconds = 120 } = {}) {
+  if (!Array.isArray(itemsRaw) || itemsRaw.length < 1 || itemsRaw.length > 100) {
+    throw new InputError("items must contain 1 to 100 context items");
+  }
+  const nowMs = now === undefined || now === "" ? Date.now() : Date.parse(now);
+  if (!Number.isFinite(nowMs)) throw new InputError("now must be a valid ISO 8601 timestamp");
+  const ahead = Number(refreshAheadSeconds);
+  if (!Number.isInteger(ahead) || ahead < 0 || ahead > 86400) {
+    throw new InputError("refresh_ahead_seconds must be an integer from 0 to 86400");
+  }
+
+  const seen = new Set();
+  const assessed = itemsRaw.map((raw, index) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new InputError(`items[${index}] must be an object`);
+    const id = String(raw.id ?? "").trim();
+    if (!id || id.length > 200) throw new InputError(`items[${index}].id must be 1 to 200 characters`);
+    if (seen.has(id)) throw new InputError(`items contains duplicate id: ${id}`);
+    seen.add(id);
+    const capturedMs = Date.parse(raw.captured_at);
+    if (!Number.isFinite(capturedMs)) throw new InputError(`items[${index}].captured_at must be a valid ISO 8601 timestamp`);
+    if (capturedMs > nowMs + 300_000) throw new InputError(`items[${index}].captured_at cannot be more than 5 minutes in the future`);
+    const ttl = Number(raw.ttl_seconds);
+    if (!Number.isInteger(ttl) || ttl < 1 || ttl > 31_536_000) {
+      throw new InputError(`items[${index}].ttl_seconds must be an integer from 1 to 31536000`);
+    }
+    const expiresMs = capturedMs + ttl * 1000;
+    const remaining = Math.floor((expiresMs - nowMs) / 1000);
+    const status = remaining <= 0 ? "stale" : remaining <= ahead ? "near_expiry" : "fresh";
+    return {
+      id,
+      status,
+      required: raw.required === true,
+      age_seconds: Math.max(0, Math.floor((nowMs - capturedMs) / 1000)),
+      expires_at: new Date(expiresMs).toISOString(),
+      expires_in_seconds: remaining,
+    };
+  });
+
+  const stale = assessed.filter(item => item.status === "stale");
+  const nearExpiry = assessed.filter(item => item.status === "near_expiry");
+  const fresh = assessed.filter(item => item.status === "fresh");
+  const refreshPlan = [...stale, ...nearExpiry].map(item => ({
+    id: item.id,
+    priority: item.required ? "required" : item.status === "stale" ? "high" : "normal",
+    reason: item.status === "stale" ? `expired-${Math.abs(item.expires_in_seconds)}s-ago` : `expires-in-${item.expires_in_seconds}s`,
+  }));
+  const decision = stale.length ? "REFRESH_REQUIRED" : nearExpiry.length ? "REFRESH_SOON" : "FRESH";
+
+  return {
+    decision,
+    evaluated_at: new Date(nowMs).toISOString(),
+    fresh: fresh.map(item => item.id),
+    stale: stale.map(item => item.id),
+    near_expiry: nearExpiry.map(item => item.id),
+    usable_ids: assessed.filter(item => item.status !== "stale").map(item => item.id),
+    refresh_plan: refreshPlan,
+    items: assessed,
+    stats: {
+      total: assessed.length,
+      fresh: fresh.length,
+      stale: stale.length,
+      near_expiry: nearExpiry.length,
+      refresh_calls_avoided: fresh.length,
+    },
+    next_action: stale.length
+      ? "Refresh stale items only; preserve fresh context."
+      : nearExpiry.length
+        ? "Continue if safe, and refresh near-expiry items before the next dependent action."
+        : "Reuse all supplied context without refresh.",
+  };
+}
