@@ -281,10 +281,10 @@ Notes for agent callers:
         },
         {
           id: "agent-workflow-utilities",
-          name: "Agent workflow utilities",
-          description: "Clarify tasks, compress context, extract constraints/actions, rank results, detect conflicts and choose next steps.",
-          tags: ["agents", "workflow", "context", "reasoning-support"],
-          examples: ["Compress this operational context", "Extract hard constraints from this task"],
+          name: "Agent workflow utilities and Task Gate",
+          description: "Preflight autonomous actions with Task Gate as PROCEED, CLARIFY, ASK_HUMAN or STOP; also clarify tasks, compress context, extract constraints/actions, rank results and detect conflicts. Try GET /api/v1/task-gate/sample free, then use GET/POST /api/v1/task-gate for your own task.",
+          tags: ["agents", "workflow", "preflight", "autonomy", "task-gate", "context", "reasoning-support"],
+          examples: ["Preflight this agent action before execution", "Compress this operational context", "Extract hard constraints from this task"],
         },
         {
           id: "agent-safety-utilities",
