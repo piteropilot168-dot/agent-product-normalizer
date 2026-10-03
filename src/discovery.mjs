@@ -142,6 +142,25 @@ export const taskGateDiscovery = declareDiscoveryExtension({
   output: taskGateOutput,
 });
 
+const freshnessItem = {
+  type: "object",
+  properties: {
+    id: { type: "string", minLength: 1, maxLength: 200 },
+    captured_at: { type: "string", format: "date-time" },
+    ttl_seconds: { type: "integer", minimum: 1, maximum: 31536000 },
+    required: { type: "boolean", default: false },
+  },
+  required: ["id", "captured_at", "ttl_seconds"],
+  additionalProperties: false,
+};
+const freshnessExampleItems = [
+  { id: "weather", captured_at: "2026-10-03T15:00:00Z", ttl_seconds: 900, required: true },
+  { id: "contract-terms", captured_at: "2026-10-01T10:00:00Z", ttl_seconds: 604800 },
+];
+const freshnessOutput = { example: { decision: "REFRESH_REQUIRED", fresh: ["contract-terms"], stale: ["weather"], near_expiry: [], usable_ids: ["contract-terms"], refresh_plan: [{ id: "weather", priority: "required", reason: "expired-2700s-ago" }], stats: { total: 2, fresh: 1, stale: 1, near_expiry: 0, refresh_calls_avoided: 1 }, next_action: "Refresh stale items only; preserve fresh context." } };
+export const contextFreshnessBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { items: JSON.stringify(freshnessExampleItems), now: "2026-10-03T16:00:00Z", refresh_ahead_seconds: "120" }, inputSchema: { type: "object", properties: { items: { type: "string", maxLength: 40000, description: "JSON array of context items" }, now: { type: "string", format: "date-time" }, refresh_ahead_seconds: { type: "string", maxLength: 5 } }, required: ["items"], additionalProperties: false }, output: freshnessOutput });
+export const contextFreshnessDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { items: freshnessExampleItems, now: "2026-10-03T16:00:00Z", refresh_ahead_seconds: 120 }, inputSchema: { type: "object", properties: { items: { type: "array", minItems: 1, maxItems: 100, items: freshnessItem }, now: { type: "string", format: "date-time" }, refresh_ahead_seconds: { type: "integer", minimum: 0, maximum: 86400, default: 120 } }, required: ["items"], additionalProperties: false }, output: freshnessOutput });
+
 const compressOutput = { example: { objective: "Ship release", compact_state: ["Release must be live Friday."], decisions: [], constraints: ["Release must be live Friday."], blockers: [], next_actions: [], stats: { input_chars: 1200, output_chars: 240, items: 6 } } };
 export const compressContextBrowserDiscovery = textGet("context", "Long agent conversation, notes, or handoff context", "We need to ship Friday. Budget is fixed. Next, verify deployment.", compressOutput);
 export const compressContextDiscovery = textPost("context", "Long agent conversation, notes, or handoff context", "We need to ship Friday. Budget is fixed. Next, verify deployment.", compressOutput, {
