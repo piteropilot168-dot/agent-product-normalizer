@@ -164,6 +164,7 @@ Recommended video routes:
 Agent workflow utilities:
 - GET/POST /api/v1/clarify — ${config.prices.clarify} — turn a messy human request into an execution-ready task.
 - GET/POST /api/v1/task-gate — ${config.prices.taskGate} — gate an autonomous action as PROCEED, CLARIFY, ASK_HUMAN or STOP with risks and next action.
+- Free sample: GET /api/v1/task-gate/sample returns a fixed preflight example without payment; use GET/POST /api/v1/task-gate at ${config.prices.taskGate} for your own task.
 - GET/POST /api/v1/compress-context — ${config.prices.compressContext} — compress long agent context into compact operational state.
 - GET/POST /api/v1/should-ask-human — ${config.prices.shouldAskHuman} — decide whether to ask the human or safely infer and continue.
 - GET/POST /api/v1/extract-constraints — ${config.prices.extractConstraints} — split a request into hard constraints, preferences, exclusions, budgets and deadlines.
@@ -231,6 +232,12 @@ Notes for agent callers:
         resource: `${baseUrl}/api/v1/hash/sample`,
         payment_required: false,
         description: "Fixed SHA-256 example to try the response format before using the paid hash endpoint.",
+      }, {
+        id: "task-gate-sample",
+        method: "GET",
+        resource: `${baseUrl}/api/v1/task-gate/sample`,
+        payment_required: false,
+        description: "Fixed autonomous-action preflight example to inspect Task Gate output before using the paid endpoint.",
       }],
     });
   };
@@ -890,6 +897,23 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   };
   app.get("/api/v1/clarify", clarifyHandler);
   app.post("/api/v1/clarify", clarifyHandler);
+
+  app.get("/api/v1/task-gate/sample", (_req, res) => {
+    res.set("cache-control", "public, max-age=300").json({
+      free_sample: true,
+      ...taskGate({
+        task: "Summarize these notes into five bullets",
+        knownContext: "The notes are already available locally.",
+        proposedAction: "summarize notes",
+      }),
+      next: {
+        method: "POST",
+        path: "/api/v1/task-gate",
+        payment: "x402",
+        price: config.prices.taskGate,
+      },
+    });
+  });
 
   const taskGateHandler = (req, res, next) => {
     try {
