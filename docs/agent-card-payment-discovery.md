@@ -1,0 +1,1 @@
+The payment-aware Agent Card is served from `/.well-known/agent-card.json` and `/.well-known/agent.json`. It is intentionally an x402 HTTP API card, not a conversational JSON-RPC endpoint. Prices are mirrored from `src/config.mjs` so the machine-readable card follows existing environment overrides.
