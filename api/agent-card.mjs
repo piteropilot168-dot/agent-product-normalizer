@@ -92,6 +92,15 @@ export default function handler(req, res) {
       examples: ["Should the agent retry this 429 response on attempt 2?"]
     },
     {
+      id: "no-progress-gate",
+      name: "Agent No-Progress Gate",
+      description: "Fingerprint a rolling tool trace and return CONTINUE, REFRAME, STOP_RETRYING or ASK_HUMAN when repeated calls, unchanged results, failures or budgets show no progress.",
+      endpoint: `${baseUrl}/api/v1/no-progress-gate`,
+      price: config.prices.noProgressGate,
+      tags: ["agents", "loop-breaker", "tool-calls", "progress", "budget", "cost-control", "deterministic"],
+      examples: ["Should the agent make another tool call after three identical calls returned the same result?"]
+    },
+    {
       id: "missing-fields",
       name: "Required Field Check",
       description: "Check whether a tool-call payload contains the required fields before spending a remote call.",
@@ -117,7 +126,7 @@ export default function handler(req, res) {
   res.status(200).json({
     name: "Agent Product Normalizer",
     description: "Low-cost deterministic x402 utilities that reduce agent tool calls, context waste, retries, unsafe actions and unnecessary model spend.",
-    version: "0.8.6",
+    version: "0.9.0",
     protocolVersion: "1.0",
     url: baseUrl,
     provider: {
