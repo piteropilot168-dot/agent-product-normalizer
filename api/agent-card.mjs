@@ -127,7 +127,7 @@ export default function handler(req, res) {
   res.status(200).json({
     name: "Agent Product Normalizer",
     description: "Low-cost deterministic x402 utilities that reduce agent tool calls, context waste, retries, unsafe actions and unnecessary model spend.",
-    version: "0.9.1",
+    version: "0.9.6",
     protocolVersion: "1.0",
     url: baseUrl,
     provider: {
