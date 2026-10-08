@@ -22,6 +22,8 @@ test("hash API returns deterministic output and rejects oversized UTF-8 input", 
     body: JSON.stringify({ text: "hello world", algo: "sha256" }),
   });
   assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get("x-agent402-free-sample"), "/api/v1/hash/sample");
+  assert.match(ok.headers.get("link"), /<\/api\/v1\/hash\/sample>; rel="preview"/);
   assert.equal((await ok.json()).hex, "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9");
 
   const longGet = await fetch(`${url}?text=${"a".repeat(1001)}`);
