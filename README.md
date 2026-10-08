@@ -1,6 +1,13 @@
-# Agent Product Normalizer + Video Intelligence API v0.9.5
+# Agent Product Normalizer + Video Intelligence API v0.9.6
 
 Machine-first x402 utilities for autonomous agents.
+
+## v0.9.6 — catalog-sweep detection
+
+- separates rapid multi-endpoint integration sweeps from isolated `priced_intent`
+- labels broad no-payment probes as `catalog_sweep` after six distinct paid paths within 15 seconds
+- correlates requests only with an ephemeral salted hash; raw caller identifiers are never logged or persisted
+- keeps any request carrying a payment proof classified as `payment_attempt`
 
 ## v0.9.5 — buyer-intent telemetry and direct free-sample routing
 
@@ -42,7 +49,7 @@ Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcri
 
 ## Health
 
-`GET /health` → version `0.9.5`.
+`GET /health` → version `0.9.6`.
 
 
 ## v0.8.2 quality pass

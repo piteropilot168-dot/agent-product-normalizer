@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 const ALGORITHMS = new Set(["sha256", "sha512", "sha1", "md5"]);
 const MAX_INPUT_BYTES = 100_000;
@@ -16,9 +16,45 @@ export function classifyCaller(userAgent = "") {
   return "unknown";
 }
 
-export function classifyX402Traffic({ hasPaymentProof = false, inputPresent = false } = {}) {
+export function classifyX402Traffic({ hasPaymentProof = false, inputPresent = false, catalogSweep = false } = {}) {
   if (hasPaymentProof) return "payment_attempt";
+  if (catalogSweep) return "catalog_sweep";
   return inputPresent ? "priced_intent" : "discovery_probe";
+}
+
+export function createCatalogSweepDetector({ windowMs = 15_000, minDistinctPaths = 6, maxClients = 500 } = {}) {
+  const salt = randomBytes(16);
+  const clients = new Map();
+
+  const digest = (value) => createHash("sha256")
+    .update(salt)
+    .update(String(value))
+    .digest("hex")
+    .slice(0, 24);
+
+  return {
+    observe({ callerKey = "", path = "", hasPaymentProof = false, now = Date.now() } = {}) {
+      if (hasPaymentProof || !callerKey || !path) return false;
+      const cutoff = now - windowMs;
+      const key = digest(callerKey);
+      const state = clients.get(key) || { paths: new Map(), updatedAt: now };
+
+      for (const [seenPath, seenAt] of state.paths) {
+        if (seenAt < cutoff) state.paths.delete(seenPath);
+      }
+      state.paths.set(path, now);
+      state.updatedAt = now;
+      clients.set(key, state);
+
+      if (clients.size > maxClients) {
+        for (const [clientKey, clientState] of clients) {
+          if (clientState.updatedAt < cutoff) clients.delete(clientKey);
+        }
+      }
+
+      return state.paths.size >= minDistinctPaths;
+    },
+  };
 }
 
 export function hashText(text, algorithm = "sha256") {
