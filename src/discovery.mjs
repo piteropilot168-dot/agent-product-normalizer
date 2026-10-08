@@ -297,6 +297,27 @@ export const hashDiscovery = declareDiscoveryExtension({
   output: hashOutput,
 });
 
+const noProgressOutput = { example: { decision: "STOP_RETRYING", progress_score: 0, reason: "same-call-keeps-returning-the-same-result", next_action: "stop-repeating-identical-call", calls_avoided_estimate: 10, trace: { event_count: 3, unique_call_count: 1, unique_result_count: 1, exact_call_repeats: 3, unchanged_result_repeats: 3, repeated_failures: 0, last_call_fingerprint: "ad31e05a3b5194a1", last_result_fingerprint: "18b229f058f017b3" }, budget: { exceeded: false, call_limit: 12, elapsed_limit_ms: null, cost_limit_usd: null, observed_elapsed_ms: 360, observed_cost_usd: 0.006 } } };
+export const noProgressGateDiscovery = declareDiscoveryExtension({
+  method: "POST", bodyType: "json",
+  input: { history: [{ tool: "web_search", args: { query: "agent loop" }, result: { hits: 0 }, status: "success", elapsed_ms: 120, cost_usd: 0.002 }, { tool: "web_search", args: { query: "agent loop" }, result: { hits: 0 }, status: "success", elapsed_ms: 120, cost_usd: 0.002 }, { tool: "web_search", args: { query: "agent loop" }, result: { hits: 0 }, status: "success", elapsed_ms: 120, cost_usd: 0.002 }], exact_repeat_limit: 3, unchanged_result_limit: 3, failure_limit: 3, max_calls: 12, allow_human_escalation: false },
+  inputSchema: {
+    type: "object",
+    properties: {
+      history: { type: "array", minItems: 2, maxItems: 100, items: { type: "object", properties: { tool: { type: "string", minLength: 1, maxLength: 200 }, name: { type: "string", minLength: 1, maxLength: 200 }, args: {}, input: {}, result: {}, output: {}, error: {}, status: { type: "string", enum: ["success", "ok", "error", "failed", "failure"] }, elapsed_ms: { type: "number", minimum: 0 }, cost_usd: { type: "number", minimum: 0 } }, additionalProperties: false } },
+      exact_repeat_limit: { type: "integer", minimum: 1, maximum: 20, default: 3 },
+      unchanged_result_limit: { type: "integer", minimum: 1, maximum: 20, default: 3 },
+      failure_limit: { type: "integer", minimum: 1, maximum: 20, default: 3 },
+      max_calls: { type: "integer", minimum: 1, maximum: 1000, default: 12 },
+      max_elapsed_ms: { type: "number", exclusiveMinimum: 0, maximum: 86400000 },
+      max_cost_usd: { type: "number", exclusiveMinimum: 0, maximum: 1000000 },
+      allow_human_escalation: { type: "boolean", default: false }
+    },
+    required: ["history"], additionalProperties: false
+  },
+  output: noProgressOutput
+});
+
 const retryOutput = { example: { retry: true, reason: "rate-limited", next_action: "retry-with-backoff", suggested_delay_ms: 2000, attempt: 2, status: 429 } };
 export const retryDecisionBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { status: "429", error: "rate limited", attempt: "2" }, inputSchema: { type: "object", properties: { status: { type: "string", maxLength: 4 }, error: { type: "string", maxLength: 4000 }, attempt: { type: "string", maxLength: 3 } }, required: ["status"], additionalProperties: false }, output: retryOutput });
 export const retryDecisionDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { status: 429, error: "rate limited", attempt: 2 }, inputSchema: { type: "object", properties: { status: { type: "integer", minimum: 0, maximum: 599 }, error: { type: "string", maxLength: 4000 }, attempt: { type: "integer", minimum: 1, maximum: 20 } }, required: ["status"], additionalProperties: false }, output: retryOutput });

@@ -35,8 +35,8 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
     openapi: "3.1.0",
     info: {
       title: "Agent Product Normalizer + Video Intelligence API",
-      version: "0.8.6",
-      description: "Paid x402 microservices for autonomous agents: high-frequency hashing, video context extraction, workflow compression, safety helpers and commerce normalization. USDC on Base. Every service supports GET plus agent-friendly POST.",
+      version: "0.9.0",
+      description: "Paid x402 microservices for autonomous agents: high-frequency hashing, video context extraction, workflow compression, safety helpers and commerce normalization. USDC on Base. Most services support both browser-friendly GET and agent-friendly POST; trace-heavy services may be POST-only.",
     },
     servers: [{ url: baseUrl }],
     paths: {
@@ -181,6 +181,27 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
       "/api/v1/missing-fields": {
         get: { operationId: "missingFieldsFromJson", summary: "Check required fields in a JSON object", parameters: [{ name: "input", in: "query", required: true, schema: { type: "string", maxLength: 12000 } }, { name: "required_fields", in: "query", required: true, schema: { type: "string", maxLength: 2000 } }], responses },
         post: { operationId: "missingFields", summary: "Check required fields in a JSON object", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["input","required_fields"], properties: { input: { type: "object", additionalProperties: true }, required_fields: { type: "array", minItems: 1, maxItems: 50, items: { type: "string" } } }, additionalProperties: false } } } }, responses },
+      },
+
+      "/api/v1/no-progress-gate": {
+        post: {
+          operationId: "noProgressGate",
+          summary: "Stop repeated tool loops when calls, results, failures, or budgets show no progress",
+          requestBody: { required: true, content: { "application/json": { schema: {
+            type: "object", required: ["history"],
+            properties: {
+              history: { type: "array", minItems: 2, maxItems: 100, items: { type: "object", properties: { tool: { type: "string", minLength: 1, maxLength: 200 }, name: { type: "string", minLength: 1, maxLength: 200 }, args: {}, input: {}, result: {}, output: {}, error: {}, status: { type: "string", enum: ["success", "ok", "error", "failed", "failure"] }, elapsed_ms: { type: "number", minimum: 0 }, cost_usd: { type: "number", minimum: 0 } }, additionalProperties: false } },
+              exact_repeat_limit: { type: "integer", minimum: 1, maximum: 20, default: 3 },
+              unchanged_result_limit: { type: "integer", minimum: 1, maximum: 20, default: 3 },
+              failure_limit: { type: "integer", minimum: 1, maximum: 20, default: 3 },
+              max_calls: { type: "integer", minimum: 1, maximum: 1000, default: 12 },
+              max_elapsed_ms: { type: "number", exclusiveMinimum: 0, maximum: 86400000 },
+              max_cost_usd: { type: "number", exclusiveMinimum: 0, maximum: 1000000 },
+              allow_human_escalation: { type: "boolean", default: false }
+            }, additionalProperties: false
+          } } } },
+          responses
+        }
       },
       "/api/v1/retry-decision": {
         get: { operationId: "retryDecisionByStatus", summary: "Decide whether/how to retry an API or tool failure", parameters: [{ name: "status", in: "query", required: true, schema: { type: "integer" } }, { name: "error", in: "query", required: false, schema: { type: "string", maxLength: 4000 } }, { name: "attempt", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 20 } }], responses },

@@ -23,6 +23,7 @@ export const config = {
     makeSearchQuery: process.env.X402_PRICE_MAKE_SEARCH_QUERY || "$0.0015",
     missingFields: process.env.X402_PRICE_MISSING_FIELDS || "$0.001",
     retryDecision: process.env.X402_PRICE_RETRY_DECISION || "$0.001",
+    noProgressGate: process.env.X402_PRICE_NO_PROGRESS_GATE || "$0.003",
     promptInjectionScan: process.env.X402_PRICE_PROMPT_INJECTION_SCAN || "$0.002",
     redactSecrets: process.env.X402_PRICE_REDACT_SECRETS || "$0.002",
     handoffDiff: process.env.X402_PRICE_HANDOFF_DIFF || "$0.002",
