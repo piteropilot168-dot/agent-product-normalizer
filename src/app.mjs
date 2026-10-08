@@ -546,12 +546,18 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   if (payments) {
     app.use("/api/v1", (req, res, next) => {
       const hasPaymentProof = Boolean(req.get("PAYMENT-SIGNATURE") || req.get("X-PAYMENT"));
-      if (!hasPaymentProof) return next();
-
       const startedAt = Date.now();
+
       res.on("finish", () => {
+        const event = !hasPaymentProof && res.statusCode === 402
+          ? "x402_payment_required"
+          : hasPaymentProof
+            ? "x402_payment_attempt_complete"
+            : null;
+        if (!event) return;
+
         console.info(JSON.stringify({
-          event: "x402_payment_attempt_complete",
+          event,
           method: req.method,
           path: (req.originalUrl || req.path).split("?")[0],
           status: res.statusCode,
