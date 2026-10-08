@@ -36,6 +36,7 @@ import {
   extractActionsBrowserDiscovery, extractActionsDiscovery,
   makeSearchQueryBrowserDiscovery, makeSearchQueryDiscovery,
   missingFieldsBrowserDiscovery, missingFieldsDiscovery,
+  noProgressGateDiscovery,
   retryDecisionBrowserDiscovery, retryDecisionDiscovery,
   promptInjectionBrowserDiscovery, promptInjectionDiscovery,
   redactSecretsBrowserDiscovery, redactSecretsDiscovery,
@@ -55,7 +56,7 @@ import { normalizeProductPage } from "./normalize.mjs";
 import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, taskGate, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
-import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep, contextFreshness, callValueGate } from "./agentops.mjs";
+import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, noProgressGate, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep, contextFreshness, callValueGate } from "./agentops.mjs";
 import { hashText } from "./utility.mjs";
 import { createResilientFacilitatorClient } from "./facilitator.mjs";
 import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
@@ -76,7 +77,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.8.6",
+    version: "0.9.0",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
@@ -99,6 +100,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       { id: "make-search-query", methods: ["GET", "POST"], path: "/api/v1/make-search-query", price: config.prices.makeSearchQuery },
       { id: "missing-fields", methods: ["GET", "POST"], path: "/api/v1/missing-fields", price: config.prices.missingFields },
       { id: "retry-decision", methods: ["GET", "POST"], path: "/api/v1/retry-decision", price: config.prices.retryDecision },
+      { id: "no-progress-gate", name: "Agent No-Progress Gate", description: "Detect repeated tool calls, unchanged results, repeated failures and exhausted budgets before an autonomous agent wastes another call.", tags: ["agents", "loop-breaker", "tool-calls", "cost-control", "progress", "deterministic"], methods: ["POST"], path: "/api/v1/no-progress-gate", price: config.prices.noProgressGate },
       { id: "prompt-injection-scan", methods: ["GET", "POST"], path: "/api/v1/prompt-injection-scan", price: config.prices.promptInjectionScan },
       { id: "redact-secrets", methods: ["GET", "POST"], path: "/api/v1/redact-secrets", price: config.prices.redactSecrets },
       { id: "handoff-diff", methods: ["GET", "POST"], path: "/api/v1/handoff-diff", price: config.prices.handoffDiff },
@@ -142,7 +144,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   app.get("/", (_req, res) => res.json(catalog));
   app.get("/catalog", (_req, res) => res.json(catalog));
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.8.6" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.9.0" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
   app.get("/llms.txt", (req, res) => {
@@ -184,6 +186,7 @@ Agent workflow utilities:
 - GET/POST /api/v1/make-search-query — ${config.prices.makeSearchQuery} — turn a verbose task into compact search queries.
 - GET/POST /api/v1/missing-fields — ${config.prices.missingFields} — check whether required tool-call inputs are present.
 - GET/POST /api/v1/retry-decision — ${config.prices.retryDecision} — classify tool/API failures and decide whether/how to retry.
+- POST /api/v1/no-progress-gate — ${config.prices.noProgressGate} — fingerprint a rolling tool trace and return CONTINUE, REFRAME, STOP_RETRYING or ASK_HUMAN before another wasteful call.
 - GET/POST /api/v1/prompt-injection-scan — ${config.prices.promptInjectionScan} — scan untrusted text for common prompt-injection patterns.
 - GET/POST /api/v1/redact-secrets — ${config.prices.redactSecrets} — redact common credential/token patterns before handoff or logging.
 - GET/POST /api/v1/handoff-diff — ${config.prices.handoffDiff} — report what changed between two agent states.
@@ -264,7 +267,7 @@ Notes for agent callers:
       protocolVersion: "1.0",
       name: "Agent Product Normalizer",
       description: "Machine-first x402-paid utilities for agent workflow cleanup, safety checks, video context extraction and structured commerce data.",
-      version: "0.8.6",
+      version: "0.9.0",
       url: baseUrl,
       documentationUrl: `${baseUrl}/skill.md`,
       capabilities: {
@@ -408,6 +411,7 @@ Use this route when the caller does not want to ingest the full video transcript
 - Build search queries: \`${baseUrl}/api/v1/make-search-query\`
 - Check missing fields: \`${baseUrl}/api/v1/missing-fields\`
 - Retry decision: \`${baseUrl}/api/v1/retry-decision\`
+- No-progress gate: \`${baseUrl}/api/v1/no-progress-gate\`
 - Prompt-injection scan: \`${baseUrl}/api/v1/prompt-injection-scan\`
 - Redact secrets: \`${baseUrl}/api/v1/redact-secrets\`
 - Handoff diff: \`${baseUrl}/api/v1/handoff-diff\`
@@ -803,6 +807,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       "POST /api/v1/missing-fields": { accepts: accepts(config.prices.missingFields), description: "Check whether a tool call or structured request is missing required input fields", mimeType: "application/json", serviceName: "Agent Missing Field Checker", tags: ["agents","tools","validation","schema"], extensions: missingFieldsDiscovery },
       "GET /api/v1/retry-decision": { accepts: accepts(config.prices.retryDecision), description: "Decide whether an API/tool failure should be retried and suggest the next action", mimeType: "application/json", serviceName: "Agent Retry Decision", tags: ["agents","retry","errors","reliability"], extensions: retryDecisionBrowserDiscovery },
       "POST /api/v1/retry-decision": { accepts: accepts(config.prices.retryDecision), description: "Decide whether an API/tool failure should be retried and suggest the next action", mimeType: "application/json", serviceName: "Agent Retry Decision", tags: ["agents","retry","errors","reliability"], extensions: retryDecisionDiscovery },
+      "POST /api/v1/no-progress-gate": { accepts: accepts(config.prices.noProgressGate), description: "Detect no-progress loops from repeated calls, unchanged results, failures and spend/time/call budgets", mimeType: "application/json", serviceName: "Agent No-Progress Gate", tags: ["agents","loop-breaker","tool-calls","cost-control","progress","deterministic"], extensions: noProgressGateDiscovery },
       "GET /api/v1/prompt-injection-scan": { accepts: accepts(config.prices.promptInjectionScan), description: "Scan untrusted text for common prompt-injection and instruction-override patterns", mimeType: "application/json", serviceName: "Agent Prompt Injection Scanner", tags: ["agents","security","prompt-injection","untrusted-content"], extensions: promptInjectionBrowserDiscovery },
       "POST /api/v1/prompt-injection-scan": { accepts: accepts(config.prices.promptInjectionScan), description: "Scan untrusted text for common prompt-injection and instruction-override patterns", mimeType: "application/json", serviceName: "Agent Prompt Injection Scanner", tags: ["agents","security","prompt-injection","untrusted-content"], extensions: promptInjectionDiscovery },
       "GET /api/v1/redact-secrets": { accepts: accepts(config.prices.redactSecrets), description: "Redact common API keys, tokens and private-key patterns before logging or handoff", mimeType: "application/json", serviceName: "Agent Secret Redactor", tags: ["agents","security","redaction","secrets"], extensions: redactSecretsBrowserDiscovery },
@@ -1029,6 +1034,8 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   app.get("/api/v1/hash", hashHandler); app.post("/api/v1/hash", hashHandler);
   const retryHandler=(req,res,next)=>{ try { const source=req.method === "GET" ? req.query : req.body; res.set("cache-control","no-store").json(retryDecision({status:source?.status,error:source?.error,attempt:source?.attempt})); } catch(error){next(error);} };
   app.get("/api/v1/retry-decision", retryHandler); app.post("/api/v1/retry-decision", retryHandler);
+  const noProgressHandler=(req,res,next)=>{ try { res.set("cache-control","no-store").json(noProgressGate(req.body)); } catch(error){next(error);} };
+  app.post("/api/v1/no-progress-gate", noProgressHandler);
   app.get("/api/v1/prompt-injection-scan", simpleTextHandler(promptInjectionScan, "text")); app.post("/api/v1/prompt-injection-scan", simpleTextHandler(promptInjectionScan, "text"));
   app.get("/api/v1/redact-secrets", simpleTextHandler(redactSecrets, "text")); app.post("/api/v1/redact-secrets", simpleTextHandler(redactSecrets, "text"));
   const diffHandler=(req,res,next)=>{ try { const source=req.method === "GET" ? req.query : req.body; res.set("cache-control","no-store").json(handoffDiff(source?.before,source?.after)); } catch(error){next(error);} };
