@@ -1,6 +1,13 @@
-# Agent Product Normalizer + Video Intelligence API v0.8.2
+# Agent Product Normalizer + Video Intelligence API v0.9.5
 
 Machine-first x402 utilities for autonomous agents.
+
+## v0.9.5 — buyer-intent telemetry and direct free-sample routing
+
+- classifies x402 traffic as `discovery_probe`, `priced_intent`, or `payment_attempt` so crawler discovery is not mistaken for revenue
+- records non-sensitive caller classes for better conversion analysis without exposing payment credentials
+- adds direct `Link: rel="preview"` and `X-Agent402-Free-Sample` headers on paid hash and no-progress-gate routes, letting agents inspect a free response before paying
+- preserves existing prices, wallet destination, and settlement behavior
 
 ## Hash utility
 
@@ -35,7 +42,7 @@ Adds Bazaar discovery metadata to every video route, fixes `/test-video-transcri
 
 ## Health
 
-`GET /health` → version `0.7.2`.
+`GET /health` → version `0.9.5`.
 
 
 ## v0.8.2 quality pass

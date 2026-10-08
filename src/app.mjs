@@ -158,7 +158,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   app.get("/", (_req, res) => res.json(catalog));
   app.get("/catalog", (_req, res) => res.json(catalog));
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.9.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.9.5" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
   app.get("/llms.txt", (req, res) => {
