@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyCaller, hashText } from "../src/utility.mjs";
+import { classifyCaller, classifyX402Traffic, hashText } from "../src/utility.mjs";
 
 test("caller classification separates crawlers, agents, browsers and unknown clients", () => {
   assert.equal(classifyCaller("Googlebot/2.1"), "crawler");
@@ -9,6 +9,12 @@ test("caller classification separates crawlers, agents, browsers and unknown cli
   assert.equal(classifyCaller("Mozilla/5.0 Chrome/130"), "browser");
   assert.equal(classifyCaller("custom-client/1.0"), "unknown");
   assert.equal(classifyCaller(), "unknown");
+});
+
+test("x402 traffic classification keeps discovery separate from buyer intent", () => {
+  assert.equal(classifyX402Traffic(), "discovery_probe");
+  assert.equal(classifyX402Traffic({ inputPresent: true }), "priced_intent");
+  assert.equal(classifyX402Traffic({ hasPaymentProof: true }), "payment_attempt");
 });
 
 test("SHA-256 output is stable and includes both common encodings", () => {

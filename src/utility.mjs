@@ -16,6 +16,11 @@ export function classifyCaller(userAgent = "") {
   return "unknown";
 }
 
+export function classifyX402Traffic({ hasPaymentProof = false, inputPresent = false } = {}) {
+  if (hasPaymentProof) return "payment_attempt";
+  return inputPresent ? "priced_intent" : "discovery_probe";
+}
+
 export function hashText(text, algorithm = "sha256") {
   if (typeof text !== "string") {
     throw new TypeError("text must be a string");
