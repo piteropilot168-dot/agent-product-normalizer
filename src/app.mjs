@@ -57,7 +57,7 @@ import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, taskGate, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
 import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, noProgressGate, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep, contextFreshness, callValueGate } from "./agentops.mjs";
-import { hashText } from "./utility.mjs";
+import { classifyCaller, hashText } from "./utility.mjs";
 import { createResilientFacilitatorClient } from "./facilitator.mjs";
 import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
 import {
@@ -77,7 +77,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.9.1",
+    version: "0.9.2",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
@@ -562,6 +562,8 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
           path: (req.originalUrl || req.path).split("?")[0],
           status: res.statusCode,
           durationMs: Date.now() - startedAt,
+          callerClass: classifyCaller(req.get("user-agent")),
+          inputPresent: req.method !== "GET" || Object.keys(req.query || {}).length > 0,
         }));
       });
       next();

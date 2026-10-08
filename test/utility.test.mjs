@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hashText } from "../src/utility.mjs";
+import { classifyCaller, hashText } from "../src/utility.mjs";
+
+test("caller classification separates crawlers, agents, browsers and unknown clients", () => {
+  assert.equal(classifyCaller("Googlebot/2.1"), "crawler");
+  assert.equal(classifyCaller("python-requests/2.32"), "agent");
+  assert.equal(classifyCaller("Mozilla/5.0 Chrome/130"), "browser");
+  assert.equal(classifyCaller("custom-client/1.0"), "unknown");
+  assert.equal(classifyCaller(), "unknown");
+});
 
 test("SHA-256 output is stable and includes both common encodings", () => {
   assert.deepEqual(hashText("hello world"), {
