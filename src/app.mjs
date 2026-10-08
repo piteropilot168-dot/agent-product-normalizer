@@ -75,9 +75,22 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
   app.disable("x-powered-by");
   app.use(express.json({ limit: "256kb" }));
 
+  const freeSamplesByPaidPath = new Map([
+    ["/api/v1/hash", "/api/v1/hash/sample"],
+    ["/api/v1/no-progress-gate", "/api/v1/no-progress-gate/sample"],
+  ]);
+  app.use((req, res, next) => {
+    const sample = freeSamplesByPaidPath.get(req.path);
+    if (sample) {
+      res.set("Link", `<${sample}>; rel="preview"; type="application/json"`);
+      res.set("X-Agent402-Free-Sample", sample);
+    }
+    next();
+  });
+
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.9.4",
+    version: "0.9.5",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
