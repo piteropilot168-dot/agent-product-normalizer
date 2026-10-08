@@ -36,7 +36,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
     info: {
       title: "Agent Product Normalizer + Video Intelligence API",
       version: "0.9.0",
-      description: "Paid x402 microservices for autonomous agents: high-frequency hashing, video context extraction, workflow compression, safety helpers and commerce normalization. USDC on Base. Every service supports GET plus agent-friendly POST.",
+      description: "Paid x402 microservices for autonomous agents: high-frequency hashing, video context extraction, workflow compression, safety helpers and commerce normalization. USDC on Base. Most services support both browser-friendly GET and agent-friendly POST; trace-heavy services may be POST-only.",
     },
     servers: [{ url: baseUrl }],
     paths: {
