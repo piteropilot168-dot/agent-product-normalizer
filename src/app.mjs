@@ -1043,7 +1043,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   app.get("/api/v1/hash", hashHandler); app.post("/api/v1/hash", hashHandler);
   const retryHandler=(req,res,next)=>{ try { const source=req.method === "GET" ? req.query : req.body; res.set("cache-control","no-store").json(retryDecision({status:source?.status,error:source?.error,attempt:source?.attempt})); } catch(error){next(error);} };
   app.get("/api/v1/retry-decision", retryHandler); app.post("/api/v1/retry-decision", retryHandler);
-  app.get("/api/v1/no-progress-gate/sample", (_req, res) => {
+  app.get("/api/v1/no-progress-gate/sample", (req, res) => {
     const history = Array.from({ length: 3 }, () => ({
       tool: "web_search",
       args: { query: "agent loop" },
@@ -1052,15 +1052,29 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       elapsed_ms: 120,
       cost_usd: 0.002,
     }));
+    const resource = `${req.protocol}://${req.get("host")}/api/v1/no-progress-gate`;
     res.set("cache-control", "public, max-age=300").json({
       free_sample: true,
       input: { history, exact_repeat_limit: 3, unchanged_result_limit: 3 },
       ...noProgressGate({ history }),
       next: {
         method: "POST",
-        path: "/api/v1/no-progress-gate",
+        resource,
+        content_type: "application/json",
         payment: "x402",
         price: config.prices.noProgressGate,
+        request_template: {
+          history: [{
+            tool: "tool_name",
+            args: { key: "value" },
+            result: { summary: "tool result" },
+            status: "success",
+            elapsed_ms: 120,
+            cost_usd: 0.002,
+          }],
+          exact_repeat_limit: 3,
+          unchanged_result_limit: 3,
+        },
       },
     });
   });
