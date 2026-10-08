@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyCaller, classifyX402Traffic, hashText } from "../src/utility.mjs";
+import { classifyCaller, classifyX402Traffic, createCatalogSweepDetector, hashText } from "../src/utility.mjs";
 
 test("caller classification separates crawlers, agents, browsers and unknown clients", () => {
   assert.equal(classifyCaller("Googlebot/2.1"), "crawler");
@@ -14,7 +14,17 @@ test("caller classification separates crawlers, agents, browsers and unknown cli
 test("x402 traffic classification keeps discovery separate from buyer intent", () => {
   assert.equal(classifyX402Traffic(), "discovery_probe");
   assert.equal(classifyX402Traffic({ inputPresent: true }), "priced_intent");
-  assert.equal(classifyX402Traffic({ hasPaymentProof: true }), "payment_attempt");
+  assert.equal(classifyX402Traffic({ catalogSweep: true, inputPresent: true }), "catalog_sweep");
+  assert.equal(classifyX402Traffic({ hasPaymentProof: true, catalogSweep: true }), "payment_attempt");
+});
+
+test("catalog sweep detector flags rapid breadth without logging a raw caller key", () => {
+  const detector = createCatalogSweepDetector({ windowMs: 10_000, minDistinctPaths: 3 });
+  assert.equal(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/hash", now: 1_000 }), false);
+  assert.equal(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/clarify", now: 2_000 }), false);
+  assert.equal(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/task-gate", now: 3_000 }), true);
+  assert.equal(detector.observe({ callerKey: "198.51.100.4", path: "/api/v1/task-gate", now: 3_000 }), false);
+  assert.equal(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/compare", hasPaymentProof: true, now: 4_000 }), false);
 });
 
 test("SHA-256 output is stable and includes both common encodings", () => {
