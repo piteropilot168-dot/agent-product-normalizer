@@ -1,10 +1,19 @@
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 
+const HTTP_URL_PATTERN = "^https?:\\/\\/[^\\s]+$";
+const RFC3339_PATTERN = "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]+)?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$";
+
 const urlProperty = {
   type: "string",
-  format: "uri",
-  description: "Public HTTP(S) product page URL",
+  pattern: HTTP_URL_PATTERN,
+  description: "Public absolute HTTP(S) product page URL",
   maxLength: 2048,
+};
+
+const dateTimeProperty = {
+  type: "string",
+  pattern: RFC3339_PATTERN,
+  description: "RFC 3339 timestamp with timezone",
 };
 
 const textProperty = (description, maxLength = 20_000) => ({ type: "string", description, maxLength });
@@ -146,7 +155,7 @@ const freshnessItem = {
   type: "object",
   properties: {
     id: { type: "string", minLength: 1, maxLength: 200 },
-    captured_at: { type: "string", format: "date-time" },
+    captured_at: dateTimeProperty,
     ttl_seconds: { type: "integer", minimum: 1, maximum: 31536000 },
     required: { type: "boolean", default: false },
   },
@@ -158,8 +167,8 @@ const freshnessExampleItems = [
   { id: "contract-terms", captured_at: "2026-10-01T10:00:00Z", ttl_seconds: 604800 },
 ];
 const freshnessOutput = { example: { decision: "REFRESH_REQUIRED", fresh: ["contract-terms"], stale: ["weather"], near_expiry: [], usable_ids: ["contract-terms"], refresh_plan: [{ id: "weather", priority: "required", reason: "expired-2700s-ago" }], stats: { total: 2, fresh: 1, stale: 1, near_expiry: 0, refresh_calls_avoided: 1 }, next_action: "Refresh stale items only; preserve fresh context." } };
-export const contextFreshnessBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { items: JSON.stringify(freshnessExampleItems), now: "2026-10-03T16:00:00Z", refresh_ahead_seconds: "120" }, inputSchema: { type: "object", properties: { items: { type: "string", maxLength: 40000, description: "JSON array of context items" }, now: { type: "string", format: "date-time" }, refresh_ahead_seconds: { type: "string", maxLength: 5 } }, required: ["items"], additionalProperties: false }, output: freshnessOutput });
-export const contextFreshnessDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { items: freshnessExampleItems, now: "2026-10-03T16:00:00Z", refresh_ahead_seconds: 120 }, inputSchema: { type: "object", properties: { items: { type: "array", minItems: 1, maxItems: 100, items: freshnessItem }, now: { type: "string", format: "date-time" }, refresh_ahead_seconds: { type: "integer", minimum: 0, maximum: 86400, default: 120 } }, required: ["items"], additionalProperties: false }, output: freshnessOutput });
+export const contextFreshnessBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { items: JSON.stringify(freshnessExampleItems), now: "2026-10-03T16:00:00Z", refresh_ahead_seconds: "120" }, inputSchema: { type: "object", properties: { items: { type: "string", maxLength: 40000, description: "JSON array of context items" }, now: dateTimeProperty, refresh_ahead_seconds: { type: "string", maxLength: 5 } }, required: ["items"], additionalProperties: false }, output: freshnessOutput });
+export const contextFreshnessDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { items: freshnessExampleItems, now: "2026-10-03T16:00:00Z", refresh_ahead_seconds: 120 }, inputSchema: { type: "object", properties: { items: { type: "array", minItems: 1, maxItems: 100, items: freshnessItem }, now: dateTimeProperty, refresh_ahead_seconds: { type: "integer", minimum: 0, maximum: 86400, default: 120 } }, required: ["items"], additionalProperties: false }, output: freshnessOutput });
 
 const callOption = { type: "object", properties: { id: { type: "string", minLength: 1, maxLength: 200 }, cost_usd: { type: "number", minimum: 0 }, latency_ms: { type: "number", minimum: 0 }, success_probability: { type: "number", minimum: 0, maximum: 1 }, value_if_success_usd: { type: "number", minimum: 0 }, loss_if_failure_usd: { type: "number", minimum: 0 } }, required: ["id", "cost_usd", "success_probability", "value_if_success_usd"], additionalProperties: false };
 const callValueInput = { id: "remote-search", cost_usd: 0.02, latency_ms: 1500, success_probability: 0.65, value_if_success_usd: 0.1, loss_if_failure_usd: 0.01, remaining_budget_usd: 0.05, latency_cost_per_second_usd: 0.002, alternatives: [{ id: "local-cache", cost_usd: 0, latency_ms: 5, success_probability: 0.4, value_if_success_usd: 0.08, loss_if_failure_usd: 0 }] };
@@ -309,7 +318,7 @@ export const chooseNextStepBrowserDiscovery = declareDiscoveryExtension({ method
 export const chooseNextStepDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { state: "Deployment is blocked waiting for DNS.", actions: ["Write launch post","Verify DNS","Buy ads"] }, inputSchema: { type: "object", properties: { state: textProperty("Current agent state",12000), actions: { type: "array", minItems: 1, maxItems: 30, items: { type: "string", maxLength: 1000 } } }, required: ["state","actions"], additionalProperties: false }, output: nextStepOutput });
 
 
-const youtubeUrlProperty = { type: "string", format: "uri", description: "Public YouTube video URL", maxLength: 2048 };
+const youtubeUrlProperty = { type: "string", pattern: HTTP_URL_PATTERN, description: "Public absolute HTTP(S) YouTube video URL", maxLength: 2048 };
 const videoTranscriptOutput = { example: { source_url: "https://www.youtube.com/watch?v=jNQXAC9IVRw", lang: "de", transcript: "Example transcript text", segments: [{ lang: "de", text: "Example transcript text", offset: 0, duration: 1000 }], provider: "supadata" } };
 export const videoTranscriptBrowserDiscovery = declareDiscoveryExtension({ method: "GET", input: { url: "https://www.youtube.com/watch?v=jNQXAC9IVRw" }, inputSchema: { type: "object", properties: { url: youtubeUrlProperty, lang: { type: "string", maxLength: 20 } }, required: ["url"], additionalProperties: false }, output: videoTranscriptOutput });
 export const videoTranscriptDiscovery = declareDiscoveryExtension({ method: "POST", bodyType: "json", input: { url: "https://www.youtube.com/watch?v=jNQXAC9IVRw" }, inputSchema: { type: "object", properties: { url: youtubeUrlProperty, lang: { type: "string", maxLength: 20 } }, required: ["url"], additionalProperties: false }, output: videoTranscriptOutput });
