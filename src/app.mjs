@@ -57,7 +57,7 @@ import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, taskGate, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
 import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, noProgressGate, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep, contextFreshness, callValueGate } from "./agentops.mjs";
-import { classifyCaller, classifyX402Traffic, hashText } from "./utility.mjs";
+import { classifyCaller, classifyX402Traffic, createCatalogSweepDetector, hashText } from "./utility.mjs";
 import { createResilientFacilitatorClient } from "./facilitator.mjs";
 import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
 import {
@@ -74,6 +74,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
   app.use(express.json({ limit: "256kb" }));
+  const catalogSweepDetector = createCatalogSweepDetector();
 
   const freeSamplesByPaidPath = new Map([
     ["/api/v1/hash", "/api/v1/hash/sample"],
@@ -90,7 +91,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const catalog = {
     name: "Agent Product Normalizer",
-    version: "0.9.5",
+    version: "0.9.6",
     status: "ready",
     payment: { network: config.network, asset: "USDC", pay_to: config.payTo },
     services: [
@@ -288,7 +289,7 @@ Notes for agent callers:
       protocolVersion: "1.0",
       name: "Agent Product Normalizer",
       description: "Machine-first x402-paid utilities for agent workflow cleanup, safety checks, video context extraction and structured commerce data.",
-      version: "0.9.1",
+      version: "0.9.6",
       url: baseUrl,
       documentationUrl: `${baseUrl}/skill.md`,
       capabilities: {
@@ -570,15 +571,21 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
             : null;
         if (!event) return;
 
+        const path = (req.originalUrl || req.path).split("?")[0];
+        const catalogSweep = !hasPaymentProof && res.statusCode === 402 && catalogSweepDetector.observe({
+          callerKey: req.ip || "",
+          path,
+        });
+
         console.info(JSON.stringify({
           event,
           method: req.method,
-          path: (req.originalUrl || req.path).split("?")[0],
+          path,
           status: res.statusCode,
           durationMs: Date.now() - startedAt,
           callerClass: classifyCaller(req.get("user-agent")),
           inputPresent,
-          trafficClass: classifyX402Traffic({ hasPaymentProof, inputPresent }),
+          trafficClass: classifyX402Traffic({ hasPaymentProof, inputPresent, catalogSweep }),
         }));
       });
       next();
