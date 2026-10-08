@@ -1,6 +1,6 @@
 {
   "name": "agent-product-normalizer",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "private": true,
   "type": "module",
   "description": "x402-paid agent utilities for expected-value gating, workflow compression, safety and commerce normalization",
