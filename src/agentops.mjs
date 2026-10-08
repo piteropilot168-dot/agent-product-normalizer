@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { InputError } from "./safe-fetch.mjs";
 
 const MAX_TEXT = 30_000;
@@ -103,6 +104,95 @@ export function missingFields(input, required) {
   const missing = req.filter(k => !(k in input) || input[k] === null || input[k] === "" || (Array.isArray(input[k]) && !input[k].length));
   const present = req.filter(k => !missing.includes(k));
   return { required_count: req.length, present_count: present.length, missing_count: missing.length, present, missing, complete: missing.length === 0 };
+}
+
+function stableValue(value, depth = 0) {
+  if (depth > 8) return "[max-depth]";
+  if (value === null || value === undefined || typeof value === "boolean" || typeof value === "string") return value ?? null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : String(value);
+  if (Array.isArray(value)) return value.slice(0, 100).map(item => stableValue(item, depth + 1));
+  if (typeof value === "object") return Object.fromEntries(Object.keys(value).sort().slice(0, 100).map(key => [key, stableValue(value[key], depth + 1)]));
+  return String(value);
+}
+
+function traceFingerprint(value) {
+  return createHash("sha256").update(JSON.stringify(stableValue(value))).digest("hex").slice(0, 16);
+}
+
+function positiveNumber(value, fallback, max, name) {
+  const number = value === undefined || value === null || value === "" ? fallback : Number(value);
+  if (!Number.isFinite(number) || number <= 0 || number > max) throw new InputError(`${name} must be a positive number no greater than ${max}`);
+  return number;
+}
+
+export function noProgressGate({
+  history,
+  exact_repeat_limit = 3,
+  unchanged_result_limit = 3,
+  failure_limit = 3,
+  max_calls = 12,
+  max_elapsed_ms,
+  max_cost_usd,
+  allow_human_escalation = false,
+} = {}) {
+  if (!Array.isArray(history) || history.length < 2 || history.length > 100) throw new InputError("history must be an array with 2 to 100 tool-call events");
+  const exactLimit = positiveNumber(exact_repeat_limit, 3, 20, "exact_repeat_limit");
+  const unchangedLimit = positiveNumber(unchanged_result_limit, 3, 20, "unchanged_result_limit");
+  const failureLimit = positiveNumber(failure_limit, 3, 20, "failure_limit");
+  const callLimit = positiveNumber(max_calls, 12, 1000, "max_calls");
+  const elapsedLimit = max_elapsed_ms === undefined ? null : positiveNumber(max_elapsed_ms, null, 86_400_000, "max_elapsed_ms");
+  const costLimit = max_cost_usd === undefined ? null : positiveNumber(max_cost_usd, null, 1_000_000, "max_cost_usd");
+  const events = history.map((event, index) => {
+    if (!event || typeof event !== "object" || Array.isArray(event)) throw new InputError(`history[${index}] must be an object`);
+    const tool = String(event.tool ?? event.name ?? "").trim();
+    if (!tool || tool.length > 200) throw new InputError(`history[${index}].tool must be a non-empty string no longer than 200 characters`);
+    const status = String(event.status ?? (event.error !== undefined ? "error" : "success")).toLowerCase();
+    if (!["success", "ok", "error", "failed", "failure"].includes(status)) throw new InputError(`history[${index}].status must be success, ok, error, failed, or failure`);
+    const args = event.args ?? event.input ?? null;
+    const result = event.result ?? event.output ?? event.error ?? null;
+    const cost = Number(event.cost_usd ?? 0);
+    const elapsed = Number(event.elapsed_ms ?? 0);
+    if (!Number.isFinite(cost) || cost < 0) throw new InputError(`history[${index}].cost_usd must be a non-negative number`);
+    if (!Number.isFinite(elapsed) || elapsed < 0) throw new InputError(`history[${index}].elapsed_ms must be a non-negative number`);
+    return { tool, call_fingerprint: traceFingerprint({ tool, args }), result_fingerprint: traceFingerprint(result), failed: ["error", "failed", "failure"].includes(status), cost, elapsed };
+  });
+  const tailCount = (key) => {
+    const last = events.at(-1); let count = 0;
+    for (let index = events.length - 1; index >= 0; index -= 1) { if (events[index][key] !== last[key]) break; count += 1; }
+    return count;
+  };
+  const exactCallRepeats = tailCount("call_fingerprint");
+  const unchangedResultRepeats = tailCount("result_fingerprint");
+  let repeatedFailures = 0;
+  for (let index = events.length - 1; index >= 0 && events[index].failed; index -= 1) repeatedFailures += 1;
+  const uniqueCalls = new Set(events.map(event => event.call_fingerprint)).size;
+  const uniqueResults = new Set(events.map(event => event.result_fingerprint)).size;
+  const totalCostUsd = events.reduce((sum, event) => sum + event.cost, 0);
+  const totalElapsedMs = events.reduce((sum, event) => sum + event.elapsed, 0);
+  const budgetExceeded = events.length >= callLimit || (elapsedLimit !== null && totalElapsedMs >= elapsedLimit) || (costLimit !== null && totalCostUsd >= costLimit);
+  const repetitionPressure = Math.max(exactCallRepeats / exactLimit, unchangedResultRepeats / unchangedLimit, repeatedFailures / failureLimit);
+  const novelty = uniqueResults / events.length;
+  const progressScore = Math.max(0, Math.min(1, Number((0.65 * novelty + 0.35 * (1 - Math.min(1, repetitionPressure))).toFixed(3))));
+  let decision = "CONTINUE", reason = "trace-still-shows-progress", nextAction = "continue-with-current-plan";
+  if (budgetExceeded) {
+    decision = allow_human_escalation ? "ASK_HUMAN" : "STOP_RETRYING";
+    reason = "configured-budget-exhausted";
+    nextAction = allow_human_escalation ? "summarize-evidence-and-request-human-decision" : "stop-before-another-call";
+  } else if (exactCallRepeats >= exactLimit && unchangedResultRepeats >= unchangedLimit) {
+    decision = "STOP_RETRYING"; reason = "same-call-keeps-returning-the-same-result"; nextAction = "stop-repeating-identical-call";
+  } else if (repeatedFailures >= failureLimit && exactCallRepeats >= exactLimit) {
+    decision = "STOP_RETRYING"; reason = "same-call-keeps-failing"; nextAction = "stop-and-inspect-root-cause";
+  } else if (unchangedResultRepeats >= unchangedLimit || repeatedFailures >= failureLimit || exactCallRepeats >= exactLimit) {
+    decision = "REFRAME";
+    reason = unchangedResultRepeats >= unchangedLimit ? "results-are-not-changing" : repeatedFailures >= failureLimit ? "failures-are-repeating" : "call-pattern-is-repeating";
+    nextAction = "change-tool-input-or-strategy-before-next-call";
+  }
+  return {
+    decision, progress_score: progressScore, reason, next_action: nextAction,
+    calls_avoided_estimate: decision === "CONTINUE" ? 0 : Math.max(1, Math.ceil(Math.min(10, callLimit - events.length + 1))),
+    trace: { event_count: events.length, unique_call_count: uniqueCalls, unique_result_count: uniqueResults, exact_call_repeats: exactCallRepeats, unchanged_result_repeats: unchangedResultRepeats, repeated_failures: repeatedFailures, last_call_fingerprint: events.at(-1).call_fingerprint, last_result_fingerprint: events.at(-1).result_fingerprint },
+    budget: { exceeded: budgetExceeded, call_limit: callLimit, elapsed_limit_ms: elapsedLimit, cost_limit_usd: costLimit, observed_elapsed_ms: totalElapsedMs, observed_cost_usd: Number(totalCostUsd.toFixed(6)) },
+  };
 }
 
 export function retryDecision({ status, error = "", attempt = 1 }) {
