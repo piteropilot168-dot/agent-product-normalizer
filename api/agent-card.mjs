@@ -97,6 +97,7 @@ export default function handler(req, res) {
       description: "Fingerprint a rolling tool trace and return CONTINUE, REFRAME, STOP_RETRYING or ASK_HUMAN when repeated calls, unchanged results, failures or budgets show no progress.",
       endpoint: `${baseUrl}/api/v1/no-progress-gate`,
       price: config.prices.noProgressGate,
+      freeSample: `${baseUrl}/api/v1/no-progress-gate/sample`,
       tags: ["agents", "loop-breaker", "tool-calls", "progress", "budget", "cost-control", "deterministic"],
       examples: ["Should the agent make another tool call after three identical calls returned the same result?"]
     },
@@ -126,7 +127,7 @@ export default function handler(req, res) {
   res.status(200).json({
     name: "Agent Product Normalizer",
     description: "Low-cost deterministic x402 utilities that reduce agent tool calls, context waste, retries, unsafe actions and unnecessary model spend.",
-    version: "0.9.0",
+    version: "0.9.1",
     protocolVersion: "1.0",
     url: baseUrl,
     provider: {

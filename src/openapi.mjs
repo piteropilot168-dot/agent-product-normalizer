@@ -35,7 +35,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
     openapi: "3.1.0",
     info: {
       title: "Agent Product Normalizer + Video Intelligence API",
-      version: "0.9.0",
+      version: "0.9.1",
       description: "Paid x402 microservices for autonomous agents: high-frequency hashing, video context extraction, workflow compression, safety helpers and commerce normalization. USDC on Base. Most services support both browser-friendly GET and agent-friendly POST; trace-heavy services may be POST-only.",
     },
     servers: [{ url: baseUrl }],
@@ -183,6 +183,30 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         post: { operationId: "missingFields", summary: "Check required fields in a JSON object", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["input","required_fields"], properties: { input: { type: "object", additionalProperties: true }, required_fields: { type: "array", minItems: 1, maxItems: 50, items: { type: "string" } } }, additionalProperties: false } } } }, responses },
       },
 
+
+      "/api/v1/no-progress-gate/sample": {
+        get: {
+          operationId: "getFreeNoProgressGateSample",
+          summary: "Get a free fixed no-progress trace decision",
+          description: "Returns a deterministic STOP_RETRYING example for three identical calls with unchanged results. No caller data or payment is required.",
+          responses: {
+            "200": {
+              description: "Free fixed sample; no payment required.",
+              content: { "application/json": { example: {
+                free_sample: true,
+                input: { history: [{ tool: "web_search", args: { query: "agent loop" }, result: { hits: 0 }, status: "success", elapsed_ms: 120, cost_usd: 0.002 }], exact_repeat_limit: 3, unchanged_result_limit: 3 },
+                decision: "STOP_RETRYING",
+                progress_score: 0,
+                reason: "same-call-keeps-returning-the-same-result",
+                next_action: "stop-repeating-identical-call",
+                calls_avoided_estimate: 10,
+                trace: { event_count: 3, unique_call_count: 1, unique_result_count: 1, exact_call_repeats: 3, unchanged_result_repeats: 3, repeated_failures: 0 },
+                next: { method: "POST", path: "/api/v1/no-progress-gate", payment: "x402", price: "$0.003" }
+              } } }
+            }
+          }
+        }
+      },
       "/api/v1/no-progress-gate": {
         post: {
           operationId: "noProgressGate",
