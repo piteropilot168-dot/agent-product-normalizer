@@ -5,6 +5,7 @@ import { classifyCaller, hashText } from "../src/utility.mjs";
 test("caller classification separates crawlers, agents, browsers and unknown clients", () => {
   assert.equal(classifyCaller("Googlebot/2.1"), "crawler");
   assert.equal(classifyCaller("python-requests/2.32"), "agent");
+  assert.equal(classifyCaller("agent402-production-check/0.9.2"), "agent");
   assert.equal(classifyCaller("Mozilla/5.0 Chrome/130"), "browser");
   assert.equal(classifyCaller("custom-client/1.0"), "unknown");
   assert.equal(classifyCaller(), "unknown");
