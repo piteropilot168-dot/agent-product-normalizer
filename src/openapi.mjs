@@ -1,11 +1,39 @@
 export function openApiDocument(baseUrl = "https://your-deployment.example") {
   const url = { type: "string", format: "uri", maxLength: 2048 };
+  const errorContent = {
+    "application/json": { schema: { $ref: "#/components/schemas/ErrorEnvelope" } },
+  };
   const responses = {
     "200": { description: "Successful paid response" },
-    "400": { description: "Invalid request" },
-    "402": { description: "x402 payment required" },
-    "422": { description: "Could not process input" },
-    "500": { description: "Unexpected server error" },
+    "400": { description: "Invalid request", content: errorContent },
+    "402": {
+      description: "x402 payment required. Decode the base64 Payment-Required header to inspect accepted payment options.",
+      headers: {
+        "Payment-Required": {
+          required: true,
+          description: "Base64-encoded x402 v2 payment requirements.",
+          schema: { type: "string", minLength: 1 },
+        },
+        Link: {
+          description: "Optional free preview route, using rel=preview, when a sample exists.",
+          schema: { type: "string" },
+        },
+        "X-Agent402-Free-Sample": {
+          description: "Optional path to a free response-shape sample.",
+          schema: { type: "string" },
+        },
+      },
+      content: { "application/json": { schema: { type: "object", maxProperties: 0 } } },
+    },
+    "422": { description: "Could not process input", content: errorContent },
+    "500": { description: "Unexpected server error", content: errorContent },
+  };
+  const hashResponses = {
+    ...responses,
+    "200": {
+      description: "Deterministic hash result",
+      content: { "application/json": { schema: { $ref: "#/components/schemas/HashResult" } } },
+    },
   };
 
   const singleGet = (operationId, summary) => ({ operationId, summary, parameters: [{ name: "url", in: "query", required: true, schema: url }], responses });
@@ -39,6 +67,39 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
       description: "Paid x402 microservices for autonomous agents: high-frequency hashing, video context extraction, workflow compression, safety helpers and commerce normalization. USDC on Base. Most services support both browser-friendly GET and agent-friendly POST; trace-heavy services may be POST-only.",
     },
     servers: [{ url: baseUrl }],
+    components: {
+      schemas: {
+        ErrorEnvelope: {
+          type: "object",
+          required: ["error"],
+          properties: {
+            error: {
+              type: "object",
+              required: ["code", "message"],
+              properties: {
+                code: { type: "string", minLength: 1, examples: ["INVALID_JSON"] },
+                message: { type: "string", minLength: 1, examples: ["request body must be valid JSON"] },
+                docs: { type: "string", format: "uri" },
+              },
+              additionalProperties: false,
+            },
+          },
+          additionalProperties: false,
+        },
+        HashResult: {
+          type: "object",
+          required: ["algorithm", "input_bytes", "hex", "base64", "security_note"],
+          properties: {
+            algorithm: { type: "string", enum: ["sha256", "sha512", "sha1", "md5"] },
+            input_bytes: { type: "integer", minimum: 0, maximum: 100000 },
+            hex: { type: "string", pattern: "^[0-9a-f]+$" },
+            base64: { type: "string", contentEncoding: "base64" },
+            security_note: { type: ["string", "null"] },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
     paths: {
       "/api/v1/hash": {
         get: {
@@ -49,7 +110,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
             { name: "text", in: "query", required: true, schema: { type: "string", maxLength: 1000, description: "Short public text only; use POST for larger inputs." } },
             { name: "algo", in: "query", required: false, schema: { type: "string", enum: ["sha256","sha512","sha1","md5"], default: "sha256" } }
           ],
-          responses,
+          responses: hashResponses,
         },
         post: {
           operationId: "hashText",
@@ -64,7 +125,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
             },
             additionalProperties: false
           } } } },
-          responses,
+          responses: hashResponses,
         },
       },
       "/api/v1/hash/sample": {
@@ -75,7 +136,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           responses: {
             "200": {
               description: "Free fixed sample; no payment required.",
-              content: { "application/json": { example: {
+              content: { "application/json": { schema: { $ref: "#/components/schemas/HashResult" }, example: {
                 free_sample: true,
                 input: "hello world",
                 algorithm: "sha256",
