@@ -158,6 +158,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       video_analyze: "/test-video-analyze",
     },
   };
+  const productByPath = new Map(catalog.services.map((service) => [service.path, service]));
 
   const homepageMarkdown = (baseUrl) => `# Agent Product Normalizer
 
@@ -683,6 +684,14 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
     app.use("/api/v1", (req, res, next) => {
       const hasPaymentProof = Boolean(req.get("PAYMENT-SIGNATURE") || req.get("X-PAYMENT"));
       const startedAt = Date.now();
+      const path = (req.originalUrl || req.path).split("?")[0];
+      const product = productByPath.get(path);
+      const freeSample = product?.free_sample || freeSamplesByPaidPath.get(path);
+      if (product) {
+        res.set("X-Agent402-Product", product.id);
+        res.set("X-Agent402-Price", product.price);
+        if (freeSample) res.set("X-Agent402-Free-Sample", freeSample);
+      }
 
       res.on("finish", () => {
         const inputPresent = req.method !== "GET" || Object.keys(req.query || {}).length > 0;
@@ -693,7 +702,6 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
             : null;
         if (!event) return;
 
-        const path = (req.originalUrl || req.path).split("?")[0];
         const sweepObservation = !hasPaymentProof && res.statusCode === 402
           ? catalogSweepDetector.observe({ callerKey: req.ip || "", path, method: req.method, inputPresent })
           : { isSweep: false, newlyDetected: false, distinctPaths: 0, pairedInputProbe: false, intentConfirmed: false };
@@ -711,6 +719,9 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
           durationMs: Date.now() - startedAt,
           callerClass: classifyCaller(req.get("user-agent")),
           inputPresent,
+          productId: product?.id,
+          price: product?.price,
+          freeSample,
           trafficClass: classifyX402Traffic({ hasPaymentProof, inputPresent, catalogSweep, integrationProbe, intentConfirmed: sweepObservation.intentConfirmed }),
           distinctPaths: sweepObservation.newlyDetected ? sweepObservation.distinctPaths : undefined,
         }));
