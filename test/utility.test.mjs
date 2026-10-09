@@ -14,32 +14,36 @@ test("caller classification separates crawlers, agents, browsers and unknown cli
 test("x402 traffic classification keeps discovery separate from buyer intent", () => {
   assert.equal(classifyX402Traffic(), "discovery_probe");
   assert.equal(classifyX402Traffic({ inputPresent: true }), "priced_intent");
+  assert.equal(classifyX402Traffic({ inputPresent: true, integrationProbe: true }), "integration_probe");
   assert.equal(classifyX402Traffic({ catalogSweep: true, inputPresent: true }), "catalog_sweep");
   assert.equal(classifyX402Traffic({ hasPaymentProof: true, catalogSweep: true }), "payment_attempt");
 });
 
-test("catalog sweep detector emits one summary signal and resets after the window", () => {
+test("catalog sweep detector separates paired integration probes and resets after the window", () => {
   const detector = createCatalogSweepDetector({ windowMs: 10_000, minDistinctPaths: 3 });
-  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/hash", now: 1_000 }), {
-    isSweep: false, newlyDetected: false, distinctPaths: 1,
+  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/hash", method: "GET", now: 1_000 }), {
+    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: false,
   });
-  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/clarify", now: 2_000 }), {
-    isSweep: false, newlyDetected: false, distinctPaths: 2,
+  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/hash", method: "POST", now: 1_500 }), {
+    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: true,
   });
-  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/task-gate", now: 3_000 }), {
-    isSweep: true, newlyDetected: true, distinctPaths: 3,
+  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/clarify", method: "GET", now: 2_000 }), {
+    isSweep: false, newlyDetected: false, distinctPaths: 2, pairedInputProbe: false,
+  });
+  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/task-gate", method: "GET", now: 3_000 }), {
+    isSweep: true, newlyDetected: true, distinctPaths: 3, pairedInputProbe: false,
   });
   assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/compare", now: 4_000 }), {
-    isSweep: true, newlyDetected: false, distinctPaths: 4,
+    isSweep: true, newlyDetected: false, distinctPaths: 4, pairedInputProbe: false,
   });
   assert.deepEqual(detector.observe({ callerKey: "198.51.100.4", path: "/api/v1/task-gate", now: 4_000 }), {
-    isSweep: false, newlyDetected: false, distinctPaths: 1,
+    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: false,
   });
   assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/compare", hasPaymentProof: true, now: 5_000 }), {
-    isSweep: false, newlyDetected: false, distinctPaths: 0,
+    isSweep: false, newlyDetected: false, distinctPaths: 0, pairedInputProbe: false,
   });
   assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/hash", now: 20_000 }), {
-    isSweep: false, newlyDetected: false, distinctPaths: 1,
+    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: false,
   });
 });
 
