@@ -21,3 +21,13 @@ test("Hash API publishes its success contract and x402 payment headers", () => {
   assert.equal(responses["402"].headers["Payment-Required"].required, true);
   assert.equal(responses["402"].content["application/json"].schema.maxProperties, 0);
 });
+
+test("No-Progress Gate publishes the paid and free-sample result contracts", () => {
+  const document = openApiDocument("https://example.test");
+  const paid = document.paths["/api/v1/no-progress-gate"].post.responses["200"];
+  const sample = document.paths["/api/v1/no-progress-gate/sample"].get.responses["200"];
+  assert.equal(paid.content["application/json"].schema.$ref, "#/components/schemas/NoProgressGateResult");
+  assert.equal(sample.content["application/json"].schema.$ref, "#/components/schemas/FreeNoProgressGateSample");
+  assert.deepEqual(document.components.schemas.NoProgressGateResult.properties.decision.enum, ["CONTINUE", "REFRAME", "STOP_RETRYING", "ASK_HUMAN"]);
+  assert.equal(document.components.schemas.NoProgressTrace.properties.last_call_fingerprint.pattern, "^[0-9a-f]{16}$");
+});
