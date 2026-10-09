@@ -70,7 +70,11 @@ test("public discovery and free samples do not initialize the payment middleware
   }
   assert.equal(paymentInitializations, 0);
 
-  assert.equal((await fetch(`${base}/api/v1/hash?text=hello`)).status, 200);
+  const paidLike = await fetch(`${base}/api/v1/hash?text=hello`);
+  assert.equal(paidLike.status, 200);
+  assert.equal(paidLike.headers.get("x-agent402-product"), "hash");
+  assert.equal(paidLike.headers.get("x-agent402-price"), "$0.0008");
+  assert.equal(paidLike.headers.get("x-agent402-free-sample"), "/api/v1/hash/sample");
   assert.equal(paymentInitializations, 1);
 });
 
