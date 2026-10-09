@@ -687,6 +687,12 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       const path = (req.originalUrl || req.path).split("?")[0];
       const product = productByPath.get(path);
       const freeSample = product?.free_sample || freeSamplesByPaidPath.get(path);
+      // Paid responses and payment challenges must never be reused across callers.
+      // Vary also prevents a cache from treating an unsigned 402 as equivalent to
+      // a request carrying either supported x402 proof header.
+      res.set("Cache-Control", "no-store");
+      res.vary("PAYMENT-SIGNATURE");
+      res.vary("X-PAYMENT");
       if (product) {
         res.set("X-Agent402-Product", product.id);
         res.set("X-Agent402-Price", product.price);
