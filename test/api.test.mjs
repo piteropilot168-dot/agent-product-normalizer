@@ -75,6 +75,8 @@ test("public discovery and free samples do not initialize the payment middleware
   assert.equal(paidLike.headers.get("x-agent402-product"), "hash");
   assert.equal(paidLike.headers.get("x-agent402-price"), "$0.0008");
   assert.equal(paidLike.headers.get("x-agent402-free-sample"), "/api/v1/hash/sample");
+  assert.match(paidLike.headers.get("link"), /docs\.x402\.org\/getting-started\/quickstart-for-buyers/);
+  assert.match(paidLike.headers.get("link"), /rel="help"/);
   assert.equal(paidLike.headers.get("cache-control"), "no-store");
   assert.match(paidLike.headers.get("vary"), /PAYMENT-SIGNATURE/);
   assert.match(paidLike.headers.get("vary"), /X-PAYMENT/);
