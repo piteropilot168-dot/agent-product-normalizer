@@ -22,6 +22,16 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           description: "Optional path to a free response-shape sample.",
           schema: { type: "string" },
         },
+        "X-Agent402-Product": {
+          required: true,
+          description: "Stable product identifier for conversion and routing telemetry.",
+          schema: { type: "string", minLength: 1 },
+        },
+        "X-Agent402-Price": {
+          required: true,
+          description: "Advertised per-call price for this product.",
+          schema: { type: "string", pattern: "^\\$[0-9]+(?:\\.[0-9]+)?$" },
+        },
       },
       content: { "application/json": { schema: { type: "object", maxProperties: 0 } } },
     },
