@@ -225,6 +225,29 @@ Paid calls use USDC on Base through x402. Prices and request schemas are publish
   app.get("/health", (_req, res) => res.json({ ok: true, version: "0.9.6" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
 
+  const sitemapPaths = [
+    "/",
+    "/catalog",
+    "/openapi.json",
+    "/llms.txt",
+    "/skill.md",
+    "/.well-known/x402",
+    "/.well-known/agent-card.json",
+    "/api/v1/hash/sample",
+    "/api/v1/task-gate/sample",
+    "/api/v1/call-value-gate/sample",
+    "/api/v1/no-progress-gate/sample",
+  ];
+  app.get("/sitemap.xml", (req, res) => {
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const urls = sitemapPaths.map((path) => `  <url><loc>${baseUrl}${path}</loc><lastmod>2026-10-09</lastmod></url>`).join("\n");
+    res.type("application/xml").set("cache-control", "public, max-age=3600").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
+  });
+  app.get("/robots.txt", (req, res) => {
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.type("text/plain").set("cache-control", "public, max-age=3600").send(`User-agent: *\nAllow: /\nSitemap: ${baseUrl}/sitemap.xml\n`);
+  });
+
   app.get("/llms.txt", (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     res.type("text/plain").send(`# Agent Utility API — x402 microservices for autonomous agents
