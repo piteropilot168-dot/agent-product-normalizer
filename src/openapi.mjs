@@ -42,6 +42,20 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
       content: { "application/json": { schema: { $ref: "#/components/schemas/NoProgressGateResult" } } },
     },
   };
+  const taskGateResponses = {
+    ...responses,
+    "200": {
+      description: "Task preflight decision",
+      content: { "application/json": { schema: { $ref: "#/components/schemas/TaskGateResult" } } },
+    },
+  };
+  const callValueResponses = {
+    ...responses,
+    "200": {
+      description: "Expected-value decision and assessed call options",
+      content: { "application/json": { schema: { $ref: "#/components/schemas/CallValueGateResult" } } },
+    },
+  };
 
   const singleGet = (operationId, summary) => ({ operationId, summary, parameters: [{ name: "url", in: "query", required: true, schema: url }], responses });
   const singlePost = (operationId, summary) => ({
@@ -102,6 +116,75 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
             hex: { type: "string", pattern: "^[0-9a-f]+$" },
             base64: { type: "string", contentEncoding: "base64" },
             security_note: { type: ["string", "null"] },
+          },
+          additionalProperties: false,
+        },
+        TaskGateResult: {
+          type: "object",
+          required: ["decision", "goal", "missing_fields", "risks", "hard_constraints", "safe_to_execute", "next_action"],
+          properties: {
+            decision: { type: "string", enum: ["PROCEED", "CLARIFY", "ASK_HUMAN", "STOP"] },
+            goal: { type: "string" },
+            missing_fields: { type: "array", items: { type: "string" } },
+            risks: { type: "array", items: { type: "string" } },
+            hard_constraints: { type: "array", items: { type: "string" } },
+            safe_to_execute: { type: "boolean" },
+            next_action: { type: "string", minLength: 1 },
+          },
+          additionalProperties: false,
+        },
+        FreeTaskGateSample: {
+          type: "object",
+          required: ["free_sample", "decision", "goal", "missing_fields", "risks", "hard_constraints", "safe_to_execute", "next_action", "next"],
+          properties: {
+            free_sample: { type: "boolean", const: true },
+            decision: { type: "string", enum: ["PROCEED", "CLARIFY", "ASK_HUMAN", "STOP"] },
+            goal: { type: "string" },
+            missing_fields: { type: "array", items: { type: "string" } },
+            risks: { type: "array", items: { type: "string" } },
+            hard_constraints: { type: "array", items: { type: "string" } },
+            safe_to_execute: { type: "boolean" },
+            next_action: { type: "string", minLength: 1 },
+            next: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
+        },
+        CallAssessment: {
+          type: "object",
+          required: ["id", "cost_usd", "latency_ms", "success_probability", "expected_gross_value_usd", "latency_cost_usd", "expected_net_value_usd", "roi", "within_budget"],
+          properties: {
+            id: { type: "string", minLength: 1, maxLength: 200 },
+            cost_usd: { type: "number", minimum: 0 },
+            latency_ms: { type: "number", minimum: 0 },
+            success_probability: { type: "number", minimum: 0, maximum: 1 },
+            expected_gross_value_usd: { type: "number" },
+            latency_cost_usd: { type: "number", minimum: 0 },
+            expected_net_value_usd: { type: "number" },
+            roi: { type: ["number", "null"] },
+            within_budget: { type: "boolean" },
+          },
+          additionalProperties: false,
+        },
+        CallValueGateResult: {
+          type: "object",
+          required: ["decision", "selected_call_id", "expected_net_value_usd", "budget_after_usd", "proposed_call", "alternatives", "assumptions", "next_action"],
+          properties: {
+            decision: { type: "string", enum: ["EXECUTE", "USE_ALTERNATIVE", "SKIP", "ASK_HUMAN"] },
+            selected_call_id: { type: ["string", "null"] },
+            expected_net_value_usd: { type: ["number", "null"] },
+            budget_after_usd: { type: "number", minimum: 0 },
+            proposed_call: { $ref: "#/components/schemas/CallAssessment" },
+            alternatives: { type: "array", maxItems: 20, items: { $ref: "#/components/schemas/CallAssessment" } },
+            assumptions: {
+              type: "object",
+              required: ["latency_cost_per_second_usd", "min_expected_net_value_usd"],
+              properties: {
+                latency_cost_per_second_usd: { type: "number", minimum: 0 },
+                min_expected_net_value_usd: { type: "number", minimum: 0 },
+              },
+              additionalProperties: false,
+            },
+            next_action: { type: "string", minLength: 1 },
           },
           additionalProperties: false,
         },
@@ -237,6 +320,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
               description: "Free fixed sample; no payment required.",
               content: {
                 "application/json": {
+                  schema: { $ref: "#/components/schemas/FreeTaskGateSample" },
                   example: {
                     free_sample: true,
                     decision: "PROCEED",
@@ -264,12 +348,12 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           { name: "task", in: "query", required: true, schema: { type: "string", maxLength: 10000 } },
           { name: "known_context", in: "query", required: false, schema: { type: "string", maxLength: 15000 } },
           { name: "proposed_action", in: "query", required: false, schema: { type: "string", maxLength: 4000 } }
-        ], responses },
+        ], responses: taskGateResponses },
         post: { operationId: "taskGate", summary: "Gate an agent action: PROCEED, CLARIFY, ASK_HUMAN or STOP", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["task"], properties: {
           task: { type: "string", maxLength: 10000 },
           known_context: { type: "string", maxLength: 15000 },
           proposed_action: { type: "string", maxLength: 4000 }
-        }, additionalProperties: false } } } }, responses },
+        }, additionalProperties: false } } } }, responses: taskGateResponses },
       },
       "/api/v1/context-freshness": {
         get: { operationId: "contextFreshnessFromJson", summary: "Find stale context and create a minimal refresh plan", description: "Avoid re-fetching an agent's entire context. Classifies timestamped context items as fresh, near expiry or stale and returns only the items that need refresh.", parameters: [
@@ -284,10 +368,10 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         }, additionalProperties: false } } } }, responses },
       },
       "/api/v1/call-value-gate": {
-        get: { operationId: "callValueGateFromJson", summary: "Decide whether the next agent call is worth its cost", description: "Compare expected net value, success probability, latency cost, alternatives and remaining budget before an agent makes a model, tool or human call.", parameters: [{ name: "input", in: "query", required: true, schema: { type: "string", maxLength: 40000, description: "JSON object with the proposed call, budget and alternatives" } }], responses },
+        get: { operationId: "callValueGateFromJson", summary: "Decide whether the next agent call is worth its cost", description: "Compare expected net value, success probability, latency cost, alternatives and remaining budget before an agent makes a model, tool or human call.", parameters: [{ name: "input", in: "query", required: true, schema: { type: "string", maxLength: 40000, description: "JSON object with the proposed call, budget and alternatives" } }], responses: callValueResponses },
         post: { operationId: "callValueGate", summary: "Decide whether the next agent call is worth its cost", description: "Compare expected net value, success probability, latency cost, alternatives and remaining budget before an agent makes a model, tool or human call.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["cost_usd","success_probability","value_if_success_usd","remaining_budget_usd"], properties: {
           id: { type: "string", maxLength: 200 }, cost_usd: { type: "number", minimum: 0 }, latency_ms: { type: "number", minimum: 0 }, success_probability: { type: "number", minimum: 0, maximum: 1 }, value_if_success_usd: { type: "number", minimum: 0 }, loss_if_failure_usd: { type: "number", minimum: 0 }, remaining_budget_usd: { type: "number", minimum: 0 }, latency_cost_per_second_usd: { type: "number", minimum: 0 }, min_expected_net_value_usd: { type: "number", minimum: 0 }, required: { type: "boolean", default: false }, alternatives: { type: "array", maxItems: 20, items: { type: "object", required: ["id","cost_usd","success_probability","value_if_success_usd"], properties: { id: { type: "string", maxLength: 200 }, cost_usd: { type: "number", minimum: 0 }, latency_ms: { type: "number", minimum: 0 }, success_probability: { type: "number", minimum: 0, maximum: 1 }, value_if_success_usd: { type: "number", minimum: 0 }, loss_if_failure_usd: { type: "number", minimum: 0 } }, additionalProperties: false } }
-        }, additionalProperties: false } } } }, responses },
+        }, additionalProperties: false } } } }, responses: callValueResponses },
       },
       "/api/v1/extract-constraints": {
         get: textGet("extractTaskConstraintsByText", "Extract hard constraints, preferences, exclusions, budgets and deadlines", "text"),
