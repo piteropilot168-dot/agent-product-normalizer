@@ -4,9 +4,12 @@ export function createResilientFacilitatorClient(primaryUrl, network, {
   Client,
   logger = console,
   wait = sleep,
+  clock = Date.now,
   retries = 2,
-  discoveryTimeoutMs = 6_000,
+  discoveryTimeoutMs = 2_000,
   transactionTimeoutMs = 90_000,
+  capabilityCacheTtlMs = 300_000,
+  fallbackCacheTtlMs = 15_000,
 } = {}) {
   if (typeof Client !== "function") {
     throw new TypeError("Client must be a facilitator client constructor");
@@ -14,64 +17,82 @@ export function createResilientFacilitatorClient(primaryUrl, network, {
 
   const transactionClient = new Client({ url: primaryUrl, timeoutMs: transactionTimeoutMs });
   const discoveryClient = new Client({ url: primaryUrl, timeoutMs: discoveryTimeoutMs });
+  let cachedSupported = null;
+  let cacheExpiresAt = 0;
+  let inFlightDiscovery = null;
 
-  return {
-    async getSupported() {
-      let lastError;
+  async function loadSupported() {
+    let lastError;
 
-      for (let attempt = 1; attempt <= retries; attempt += 1) {
-        let supported;
-        try {
-          supported = await discoveryClient.getSupported();
-        } catch (error) {
-          lastError = error;
-          logger.warn(JSON.stringify({
-            event: "x402_facilitator_discovery_failure",
-            facilitator: primaryUrl,
-            network,
-            attempt,
-            error: error instanceof Error ? error.message : String(error),
-          }));
-          if (attempt < retries) await wait(250 * attempt);
-          continue;
-        }
-
-        // A valid response is authoritative. Do not turn a bad facilitator
-        // configuration or malformed response into a plausible 402 challenge.
-        if (!Array.isArray(supported?.kinds)) {
-          throw new Error("Configured facilitator returned an invalid /supported response");
-        }
-        const compatible = supported.kinds.some((kind) =>
-          kind?.x402Version === 2 && kind?.scheme === "exact" && kind?.network === network,
-        );
-        if (!compatible) {
-          throw new Error(`Configured facilitator does not advertise exact/v2 for ${network}`);
-        }
-
-        logger.info(JSON.stringify({
-          event: "x402_facilitator_ready",
+    for (let attempt = 1; attempt <= retries; attempt += 1) {
+      let supported;
+      try {
+        supported = await discoveryClient.getSupported();
+      } catch (error) {
+        lastError = error;
+        logger.warn(JSON.stringify({
+          event: "x402_facilitator_discovery_failure",
           facilitator: primaryUrl,
           network,
           attempt,
-          capabilitySource: "live",
+          error: error instanceof Error ? error.message : String(error),
         }));
-        return supported;
+        if (attempt < retries) await wait(250 * attempt);
+        continue;
       }
 
-      // Payment requirements for this registered exact scheme are deterministic.
-      // Keep discovery outages from breaking 402 responses, but verification and
-      // settlement still go to the one configured facilitator.
-      logger.warn(JSON.stringify({
-        event: "x402_facilitator_capability_fallback",
+      // A valid response is authoritative. Do not turn a bad facilitator
+      // configuration or malformed response into a plausible 402 challenge.
+      if (!Array.isArray(supported?.kinds)) {
+        throw new Error("Configured facilitator returned an invalid /supported response");
+      }
+      const compatible = supported.kinds.some((kind) =>
+        kind?.x402Version === 2 && kind?.scheme === "exact" && kind?.network === network,
+      );
+      if (!compatible) {
+        throw new Error(`Configured facilitator does not advertise exact/v2 for ${network}`);
+      }
+
+      cachedSupported = supported;
+      cacheExpiresAt = clock() + capabilityCacheTtlMs;
+      logger.info(JSON.stringify({
+        event: "x402_facilitator_ready",
         facilitator: primaryUrl,
         network,
-        error: lastError instanceof Error ? lastError.message : String(lastError),
+        attempt,
+        capabilitySource: "live",
       }));
-      return {
-        kinds: [{ x402Version: 2, scheme: "exact", network }],
-        extensions: [],
-        signers: {},
-      };
+      return supported;
+    }
+
+    // Payment requirements for this registered exact scheme are deterministic.
+    // Keep discovery outages from breaking 402 responses, but verification and
+    // settlement still go to the one configured facilitator.
+    logger.warn(JSON.stringify({
+      event: "x402_facilitator_capability_fallback",
+      facilitator: primaryUrl,
+      network,
+      error: lastError instanceof Error ? lastError.message : String(lastError),
+    }));
+    cachedSupported = {
+      kinds: [{ x402Version: 2, scheme: "exact", network }],
+      extensions: [],
+      signers: {},
+    };
+    cacheExpiresAt = clock() + fallbackCacheTtlMs;
+    return cachedSupported;
+  }
+
+  return {
+    async getSupported() {
+      if (cachedSupported && clock() < cacheExpiresAt) return cachedSupported;
+      if (!inFlightDiscovery) inFlightDiscovery = loadSupported();
+      const pending = inFlightDiscovery;
+      try {
+        return await pending;
+      } finally {
+        if (inFlightDiscovery === pending) inFlightDiscovery = null;
+      }
     },
 
     verify(paymentPayload, paymentRequirements) {
