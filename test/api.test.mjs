@@ -43,3 +43,26 @@ test("hash API returns deterministic output and rejects oversized UTF-8 input", 
   assert.equal(taskGate.headers.get("x-agent402-free-sample"), "/api/v1/task-gate/sample");
   assert.match(taskGate.headers.get("link"), /<\/api\/v1\/task-gate\/sample>; rel="preview"/);
 });
+
+test("public discovery and free samples do not initialize the payment middleware", async (t) => {
+  let paymentInitializations = 0;
+  const app = createApp({
+    payments: true,
+    paymentMiddlewareFactory: () => {
+      paymentInitializations += 1;
+      return (_req, _res, next) => next();
+    },
+  });
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
+  const base = `http://127.0.0.1:${server.address().port}`;
+
+  for (const path of ["/openapi.json", "/llms.txt", "/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/no-progress-gate/sample"]) {
+    assert.equal((await fetch(`${base}${path}`)).status, 200);
+  }
+  assert.equal(paymentInitializations, 0);
+
+  assert.equal((await fetch(`${base}/api/v1/hash?text=hello`)).status, 200);
+  assert.equal(paymentInitializations, 1);
+});
