@@ -18,13 +18,29 @@ test("x402 traffic classification keeps discovery separate from buyer intent", (
   assert.equal(classifyX402Traffic({ hasPaymentProof: true, catalogSweep: true }), "payment_attempt");
 });
 
-test("catalog sweep detector flags rapid breadth without logging a raw caller key", () => {
+test("catalog sweep detector emits one summary signal and resets after the window", () => {
   const detector = createCatalogSweepDetector({ windowMs: 10_000, minDistinctPaths: 3 });
-  assert.equal(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/hash", now: 1_000 }), false);
-  assert.equal(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/clarify", now: 2_000 }), false);
-  assert.equal(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/task-gate", now: 3_000 }), true);
-  assert.equal(detector.observe({ callerKey: "198.51.100.4", path: "/api/v1/task-gate", now: 3_000 }), false);
-  assert.equal(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/compare", hasPaymentProof: true, now: 4_000 }), false);
+  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/hash", now: 1_000 }), {
+    isSweep: false, newlyDetected: false, distinctPaths: 1,
+  });
+  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/clarify", now: 2_000 }), {
+    isSweep: false, newlyDetected: false, distinctPaths: 2,
+  });
+  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/task-gate", now: 3_000 }), {
+    isSweep: true, newlyDetected: true, distinctPaths: 3,
+  });
+  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/compare", now: 4_000 }), {
+    isSweep: true, newlyDetected: false, distinctPaths: 4,
+  });
+  assert.deepEqual(detector.observe({ callerKey: "198.51.100.4", path: "/api/v1/task-gate", now: 4_000 }), {
+    isSweep: false, newlyDetected: false, distinctPaths: 1,
+  });
+  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/compare", hasPaymentProof: true, now: 5_000 }), {
+    isSweep: false, newlyDetected: false, distinctPaths: 0,
+  });
+  assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/hash", now: 20_000 }), {
+    isSweep: false, newlyDetected: false, distinctPaths: 1,
+  });
 });
 
 test("SHA-256 output is stable and includes both common encodings", () => {
