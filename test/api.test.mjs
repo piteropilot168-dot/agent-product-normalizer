@@ -65,11 +65,29 @@ test("public discovery and free samples do not initialize the payment middleware
   t.after(() => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
   const base = `http://127.0.0.1:${server.address().port}`;
 
-  for (const path of ["/openapi.json", "/llms.txt", "/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/call-value-gate/sample", "/api/v1/no-progress-gate/sample"]) {
+  for (const path of ["/openapi.json", "/llms.txt", "/sitemap.xml", "/robots.txt", "/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/call-value-gate/sample", "/api/v1/no-progress-gate/sample"]) {
     assert.equal((await fetch(`${base}${path}`)).status, 200);
   }
   assert.equal(paymentInitializations, 0);
 
   assert.equal((await fetch(`${base}/api/v1/hash?text=hello`)).status, 200);
   assert.equal(paymentInitializations, 1);
+});
+
+test("sitemap and robots expose canonical discovery URLs", async (t) => {
+  const server = createServer(createApp({ payments: false }));
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
+  const base = `http://127.0.0.1:${server.address().port}`;
+
+  const sitemap = await fetch(`${base}/sitemap.xml`);
+  assert.match(sitemap.headers.get("content-type"), /application\/xml/);
+  const xml = await sitemap.text();
+  assert.match(xml, /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
+  assert.match(xml, /\/openapi\.json<\/loc>/);
+  assert.match(xml, /\/api\/v1\/call-value-gate\/sample<\/loc>/);
+
+  const robots = await fetch(`${base}/robots.txt`);
+  assert.match(robots.headers.get("content-type"), /text\/plain/);
+  assert.match(await robots.text(), /Sitemap: http:\/\/127\.0\.0\.1:\d+\/sitemap\.xml/);
 });
