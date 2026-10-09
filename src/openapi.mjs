@@ -188,6 +188,32 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           },
           additionalProperties: false,
         },
+        FreeCallValueGateSample: {
+          type: "object",
+          required: ["free_sample", "input", "decision", "selected_call_id", "expected_net_value_usd", "budget_after_usd", "proposed_call", "alternatives", "assumptions", "next_action", "next"],
+          properties: {
+            free_sample: { type: "boolean", const: true },
+            input: { type: "object", additionalProperties: true },
+            decision: { type: "string", enum: ["EXECUTE", "USE_ALTERNATIVE", "SKIP", "ASK_HUMAN"] },
+            selected_call_id: { type: ["string", "null"] },
+            expected_net_value_usd: { type: ["number", "null"] },
+            budget_after_usd: { type: "number", minimum: 0 },
+            proposed_call: { $ref: "#/components/schemas/CallAssessment" },
+            alternatives: { type: "array", maxItems: 20, items: { $ref: "#/components/schemas/CallAssessment" } },
+            assumptions: {
+              type: "object",
+              required: ["latency_cost_per_second_usd", "min_expected_net_value_usd"],
+              properties: {
+                latency_cost_per_second_usd: { type: "number", minimum: 0 },
+                min_expected_net_value_usd: { type: "number", minimum: 0 },
+              },
+              additionalProperties: false,
+            },
+            next_action: { type: "string", minLength: 1 },
+            next: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
+        },
         NoProgressTrace: {
           type: "object",
           required: ["event_count", "unique_call_count", "unique_result_count", "exact_call_repeats", "unchanged_result_repeats", "repeated_failures", "last_call_fingerprint", "last_result_fingerprint"],
@@ -372,6 +398,19 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         post: { operationId: "callValueGate", summary: "Decide whether the next agent call is worth its cost", description: "Compare expected net value, success probability, latency cost, alternatives and remaining budget before an agent makes a model, tool or human call.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["cost_usd","success_probability","value_if_success_usd","remaining_budget_usd"], properties: {
           id: { type: "string", maxLength: 200 }, cost_usd: { type: "number", minimum: 0 }, latency_ms: { type: "number", minimum: 0 }, success_probability: { type: "number", minimum: 0, maximum: 1 }, value_if_success_usd: { type: "number", minimum: 0 }, loss_if_failure_usd: { type: "number", minimum: 0 }, remaining_budget_usd: { type: "number", minimum: 0 }, latency_cost_per_second_usd: { type: "number", minimum: 0 }, min_expected_net_value_usd: { type: "number", minimum: 0 }, required: { type: "boolean", default: false }, alternatives: { type: "array", maxItems: 20, items: { type: "object", required: ["id","cost_usd","success_probability","value_if_success_usd"], properties: { id: { type: "string", maxLength: 200 }, cost_usd: { type: "number", minimum: 0 }, latency_ms: { type: "number", minimum: 0 }, success_probability: { type: "number", minimum: 0, maximum: 1 }, value_if_success_usd: { type: "number", minimum: 0 }, loss_if_failure_usd: { type: "number", minimum: 0 } }, additionalProperties: false } }
         }, additionalProperties: false } } } }, responses: callValueResponses },
+      },
+      "/api/v1/call-value-gate/sample": {
+        get: {
+          operationId: "getFreeCallValueGateSample",
+          summary: "Get a free fixed call-value decision",
+          description: "Returns a deterministic EXECUTE example so agents can inspect the output schema before paying.",
+          responses: {
+            "200": {
+              description: "Free fixed sample; no payment required.",
+              content: { "application/json": { schema: { $ref: "#/components/schemas/FreeCallValueGateSample" } } },
+            },
+          },
+        },
       },
       "/api/v1/extract-constraints": {
         get: textGet("extractTaskConstraintsByText", "Extract hard constraints, preferences, exclusions, budgets and deadlines", "text"),

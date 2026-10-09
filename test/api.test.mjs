@@ -42,6 +42,13 @@ test("hash API returns deterministic output and rejects oversized UTF-8 input", 
   assert.equal(taskGate.status, 200);
   assert.equal(taskGate.headers.get("x-agent402-free-sample"), "/api/v1/task-gate/sample");
   assert.match(taskGate.headers.get("link"), /<\/api\/v1\/task-gate\/sample>; rel="preview"/);
+
+  const callValue = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/call-value-gate/sample`);
+  assert.equal(callValue.status, 200);
+  const callValueBody = await callValue.json();
+  assert.equal(callValueBody.free_sample, true);
+  assert.equal(callValueBody.decision, "EXECUTE");
+  assert.equal(callValueBody.next.path, "/api/v1/call-value-gate");
 });
 
 test("public discovery and free samples do not initialize the payment middleware", async (t) => {
@@ -58,7 +65,7 @@ test("public discovery and free samples do not initialize the payment middleware
   t.after(() => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
   const base = `http://127.0.0.1:${server.address().port}`;
 
-  for (const path of ["/openapi.json", "/llms.txt", "/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/no-progress-gate/sample"]) {
+  for (const path of ["/openapi.json", "/llms.txt", "/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/call-value-gate/sample", "/api/v1/no-progress-gate/sample"]) {
     assert.equal((await fetch(`${base}${path}`)).status, 200);
   }
   assert.equal(paymentInitializations, 0);
