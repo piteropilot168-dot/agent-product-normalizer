@@ -13,7 +13,8 @@ test("caller classification separates crawlers, agents, browsers and unknown cli
 
 test("x402 traffic classification keeps discovery separate from buyer intent", () => {
   assert.equal(classifyX402Traffic(), "discovery_probe");
-  assert.equal(classifyX402Traffic({ inputPresent: true }), "priced_intent");
+  assert.equal(classifyX402Traffic({ inputPresent: true }), "priced_intent_candidate");
+  assert.equal(classifyX402Traffic({ inputPresent: true, intentConfirmed: true }), "priced_intent");
   assert.equal(classifyX402Traffic({ inputPresent: true, integrationProbe: true }), "integration_probe");
   assert.equal(classifyX402Traffic({ catalogSweep: true, inputPresent: true }), "catalog_sweep");
   assert.equal(classifyX402Traffic({ hasPaymentProof: true, catalogSweep: true }), "payment_attempt");
@@ -22,29 +23,47 @@ test("x402 traffic classification keeps discovery separate from buyer intent", (
 test("catalog sweep detector separates paired integration probes and resets after the window", () => {
   const detector = createCatalogSweepDetector({ windowMs: 10_000, minDistinctPaths: 3 });
   assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/hash", method: "GET", now: 1_000 }), {
-    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: false,
+    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: false, intentConfirmed: false,
   });
   assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/hash", method: "POST", now: 1_500 }), {
-    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: true,
+    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: true, intentConfirmed: false,
   });
   assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/clarify", method: "GET", now: 2_000 }), {
-    isSweep: false, newlyDetected: false, distinctPaths: 2, pairedInputProbe: false,
+    isSweep: false, newlyDetected: false, distinctPaths: 2, pairedInputProbe: false, intentConfirmed: false,
   });
   assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/task-gate", method: "GET", now: 3_000 }), {
-    isSweep: true, newlyDetected: true, distinctPaths: 3, pairedInputProbe: false,
+    isSweep: true, newlyDetected: true, distinctPaths: 3, pairedInputProbe: false, intentConfirmed: false,
   });
   assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/compare", now: 4_000 }), {
-    isSweep: true, newlyDetected: false, distinctPaths: 4, pairedInputProbe: false,
+    isSweep: true, newlyDetected: false, distinctPaths: 4, pairedInputProbe: false, intentConfirmed: false,
   });
   assert.deepEqual(detector.observe({ callerKey: "198.51.100.4", path: "/api/v1/task-gate", now: 4_000 }), {
-    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: false,
+    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: false, intentConfirmed: false,
   });
   assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/compare", hasPaymentProof: true, now: 5_000 }), {
-    isSweep: false, newlyDetected: false, distinctPaths: 0, pairedInputProbe: false,
+    isSweep: false, newlyDetected: false, distinctPaths: 0, pairedInputProbe: false, intentConfirmed: false,
   });
   assert.deepEqual(detector.observe({ callerKey: "203.0.113.8", path: "/api/v1/hash", now: 20_000 }), {
-    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: false,
+    isSweep: false, newlyDetected: false, distinctPaths: 1, pairedInputProbe: false, intentConfirmed: false,
   });
+});
+
+test("buyer intent requires a separated repeat while the first call remains visible as a candidate", () => {
+  const detector = createCatalogSweepDetector({ confirmIntentAfterMs: 10_000, intentWindowMs: 60_000 });
+  const first = detector.observe({ callerKey: "203.0.113.9", path: "/api/v1/no-progress-gate", method: "POST", inputPresent: true, now: 1_000 });
+  const immediateRetry = detector.observe({ callerKey: "203.0.113.9", path: "/api/v1/no-progress-gate", method: "POST", inputPresent: true, now: 5_000 });
+  const deliberateRetry = detector.observe({ callerKey: "203.0.113.9", path: "/api/v1/no-progress-gate", method: "POST", inputPresent: true, now: 16_000 });
+  assert.equal(first.intentConfirmed, false);
+  assert.equal(immediateRetry.intentConfirmed, false);
+  assert.equal(deliberateRetry.intentConfirmed, true);
+});
+
+test("payment proof always bypasses candidate intent state", () => {
+  const detector = createCatalogSweepDetector();
+  assert.deepEqual(detector.observe({ callerKey: "203.0.113.10", path: "/api/v1/hash", method: "POST", inputPresent: true, hasPaymentProof: true }), {
+    isSweep: false, newlyDetected: false, distinctPaths: 0, pairedInputProbe: false, intentConfirmed: false,
+  });
+  assert.equal(classifyX402Traffic({ hasPaymentProof: true, inputPresent: true }), "payment_attempt");
 });
 
 test("SHA-256 output is stable and includes both common encodings", () => {

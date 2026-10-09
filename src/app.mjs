@@ -634,8 +634,8 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
 
         const path = (req.originalUrl || req.path).split("?")[0];
         const sweepObservation = !hasPaymentProof && res.statusCode === 402
-          ? catalogSweepDetector.observe({ callerKey: req.ip || "", path, method: req.method })
-          : { isSweep: false, newlyDetected: false, distinctPaths: 0, pairedInputProbe: false };
+          ? catalogSweepDetector.observe({ callerKey: req.ip || "", path, method: req.method, inputPresent })
+          : { isSweep: false, newlyDetected: false, distinctPaths: 0, pairedInputProbe: false, intentConfirmed: false };
         const catalogSweep = sweepObservation.isSweep;
         const integrationProbe = sweepObservation.pairedInputProbe;
 
@@ -650,7 +650,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
           durationMs: Date.now() - startedAt,
           callerClass: classifyCaller(req.get("user-agent")),
           inputPresent,
-          trafficClass: classifyX402Traffic({ hasPaymentProof, inputPresent, catalogSweep, integrationProbe }),
+          trafficClass: classifyX402Traffic({ hasPaymentProof, inputPresent, catalogSweep, integrationProbe, intentConfirmed: sweepObservation.intentConfirmed }),
           distinctPaths: sweepObservation.newlyDetected ? sweepObservation.distinctPaths : undefined,
         }));
       });

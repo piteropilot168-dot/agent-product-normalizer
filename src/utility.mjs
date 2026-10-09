@@ -16,14 +16,21 @@ export function classifyCaller(userAgent = "") {
   return "unknown";
 }
 
-export function classifyX402Traffic({ hasPaymentProof = false, inputPresent = false, catalogSweep = false, integrationProbe = false } = {}) {
+export function classifyX402Traffic({ hasPaymentProof = false, inputPresent = false, catalogSweep = false, integrationProbe = false, intentConfirmed = false } = {}) {
   if (hasPaymentProof) return "payment_attempt";
   if (catalogSweep) return "catalog_sweep";
   if (integrationProbe) return "integration_probe";
-  return inputPresent ? "priced_intent" : "discovery_probe";
+  if (intentConfirmed) return "priced_intent";
+  return inputPresent ? "priced_intent_candidate" : "discovery_probe";
 }
 
-export function createCatalogSweepDetector({ windowMs = 15_000, minDistinctPaths = 6, maxClients = 500 } = {}) {
+export function createCatalogSweepDetector({
+  windowMs = 15_000,
+  minDistinctPaths = 6,
+  maxClients = 500,
+  confirmIntentAfterMs = 10_000,
+  intentWindowMs = 600_000,
+} = {}) {
   const salt = randomBytes(16);
   const clients = new Map();
 
@@ -34,12 +41,12 @@ export function createCatalogSweepDetector({ windowMs = 15_000, minDistinctPaths
     .slice(0, 24);
 
   return {
-    observe({ callerKey = "", path = "", method = "", hasPaymentProof = false, now = Date.now() } = {}) {
-      const empty = { isSweep: false, newlyDetected: false, distinctPaths: 0, pairedInputProbe: false };
+    observe({ callerKey = "", path = "", method = "", hasPaymentProof = false, inputPresent = false, now = Date.now() } = {}) {
+      const empty = { isSweep: false, newlyDetected: false, distinctPaths: 0, pairedInputProbe: false, intentConfirmed: false };
       if (hasPaymentProof || !callerKey || !path) return empty;
       const cutoff = now - windowMs;
       const key = digest(callerKey);
-      const state = clients.get(key) || { paths: new Map(), methods: new Map(), updatedAt: now, sweepActive: false };
+      const state = clients.get(key) || { paths: new Map(), methods: new Map(), intentCandidates: new Map(), updatedAt: now, sweepActive: false };
 
       for (const [seenPath, seenAt] of state.paths) {
         if (seenAt < cutoff) {
@@ -52,6 +59,19 @@ export function createCatalogSweepDetector({ windowMs = 15_000, minDistinctPaths
       method = String(method).toUpperCase();
       const seenMethods = state.methods.get(path) || new Map();
       const pairedInputProbe = method === "POST" && seenMethods.has("GET");
+      const previousIntentAt = state.intentCandidates.get(path);
+      const intentConfirmed = method === "POST"
+        && inputPresent
+        && !pairedInputProbe
+        && previousIntentAt !== undefined
+        && now - previousIntentAt >= confirmIntentAfterMs
+        && now - previousIntentAt <= intentWindowMs;
+      if (method === "POST" && inputPresent && !pairedInputProbe) {
+        state.intentCandidates.set(path, now);
+      }
+      for (const [intentPath, seenAt] of state.intentCandidates) {
+        if (seenAt < now - intentWindowMs) state.intentCandidates.delete(intentPath);
+      }
       if (method) seenMethods.set(method, now);
       state.methods.set(path, seenMethods);
       state.paths.set(path, now);
@@ -67,7 +87,7 @@ export function createCatalogSweepDetector({ windowMs = 15_000, minDistinctPaths
         }
       }
 
-      return { isSweep, newlyDetected, distinctPaths: state.paths.size, pairedInputProbe };
+      return { isSweep, newlyDetected, distinctPaths: state.paths.size, pairedInputProbe, intentConfirmed };
     },
   };
 }
