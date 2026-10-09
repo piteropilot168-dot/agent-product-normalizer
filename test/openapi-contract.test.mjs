@@ -50,4 +50,6 @@ test("Call Value Gate publishes its decision and assessed-option contract", () =
   }
   assert.deepEqual(document.components.schemas.CallValueGateResult.properties.decision.enum, ["EXECUTE", "USE_ALTERNATIVE", "SKIP", "ASK_HUMAN"]);
   assert.equal(document.components.schemas.CallAssessment.properties.within_budget.type, "boolean");
+  const sample = document.paths["/api/v1/call-value-gate/sample"].get.responses["200"];
+  assert.equal(sample.content["application/json"].schema.$ref, "#/components/schemas/FreeCallValueGateSample");
 });
