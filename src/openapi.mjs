@@ -56,6 +56,16 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
       content: { "application/json": { schema: { $ref: "#/components/schemas/CallValueGateResult" } } },
     },
   };
+  const typedResponses = (schema, description) => ({
+    ...responses,
+    "200": {
+      description,
+      content: { "application/json": { schema: { $ref: `#/components/schemas/${schema}` } } },
+    },
+  });
+  const clarifyResponses = typedResponses("ClarifyTaskResult", "Execution-ready task clarification");
+  const constraintResponses = typedResponses("ConstraintExtractionResult", "Extracted task constraints");
+  const compressionResponses = typedResponses("ContextCompressionResult", "Compressed operational context");
 
   const singleGet = (operationId, summary) => ({ operationId, summary, parameters: [{ name: "url", in: "query", required: true, schema: url }], responses });
   const singlePost = (operationId, summary) => ({
@@ -116,6 +126,58 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
             hex: { type: "string", pattern: "^[0-9a-f]+$" },
             base64: { type: "string", contentEncoding: "base64" },
             security_note: { type: ["string", "null"] },
+          },
+          additionalProperties: false,
+        },
+        ClarifyTaskResult: {
+          type: "object",
+          required: ["goal", "hard_constraints", "soft_preferences", "context_facts", "ambiguity_signals", "must_ask_user", "question_if_needed", "execution_hint"],
+          properties: {
+            goal: { type: "string" },
+            hard_constraints: { type: "array", items: { type: "string" } },
+            soft_preferences: { type: "array", items: { type: "string" } },
+            context_facts: { type: "array", maxItems: 12, items: { type: "string" } },
+            ambiguity_signals: { type: "array", uniqueItems: true, items: { type: "string", enum: ["vague-object", "subjective-criterion", "missing-budget", "missing-deadline"] } },
+            must_ask_user: { type: "boolean" },
+            question_if_needed: { type: ["string", "null"] },
+            execution_hint: { type: "string", enum: ["ask-one-question-then-act", "proceed-with-best-effort"] },
+          },
+          additionalProperties: false,
+        },
+        ConstraintExtractionResult: {
+          type: "object",
+          required: ["hard_constraints", "soft_preferences", "exclusions", "budgets_or_prices", "deadlines", "detected_count"],
+          properties: {
+            hard_constraints: { type: "array", items: { type: "string" } },
+            soft_preferences: { type: "array", items: { type: "string" } },
+            exclusions: { type: "array", items: { type: "string" } },
+            budgets_or_prices: { type: "array", items: { type: "string" } },
+            deadlines: { type: "array", items: { type: "string" } },
+            detected_count: { type: "integer", minimum: 0 },
+          },
+          additionalProperties: false,
+        },
+        ContextCompressionStats: {
+          type: "object",
+          required: ["input_chars", "output_chars", "items"],
+          properties: {
+            input_chars: { type: "integer", minimum: 0, maximum: 20000 },
+            output_chars: { type: "integer", minimum: 0 },
+            items: { type: "integer", minimum: 0, maximum: 30 },
+          },
+          additionalProperties: false,
+        },
+        ContextCompressionResult: {
+          type: "object",
+          required: ["objective", "compact_state", "decisions", "constraints", "blockers", "next_actions", "stats"],
+          properties: {
+            objective: { type: "string" },
+            compact_state: { type: "array", maxItems: 30, items: { type: "string" } },
+            decisions: { type: "array", maxItems: 30, items: { type: "string" } },
+            constraints: { type: "array", maxItems: 30, items: { type: "string" } },
+            blockers: { type: "array", maxItems: 30, items: { type: "string" } },
+            next_actions: { type: "array", maxItems: 30, items: { type: "string" } },
+            stats: { $ref: "#/components/schemas/ContextCompressionStats" },
           },
           additionalProperties: false,
         },
@@ -333,8 +395,8 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         post: { operationId: "compareProductOffers", summary: "Compare 2 to 5 product pages", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["urls"], properties: { urls: { type: "array", minItems: 2, maxItems: 5, items: url } }, additionalProperties: false } } } }, responses },
       },
       "/api/v1/clarify": {
-        get: textGet("clarifyHumanTaskByText", "Turn a messy human request into an execution-ready task", "text"),
-        post: textPost("clarifyHumanTask", "Turn a messy human request into an execution-ready task", "text"),
+        get: { ...textGet("clarifyHumanTaskByText", "Turn a messy human request into an execution-ready task", "text"), responses: clarifyResponses },
+        post: { ...textPost("clarifyHumanTask", "Turn a messy human request into an execution-ready task", "text"), responses: clarifyResponses },
       },
       "/api/v1/task-gate/sample": {
         get: {
@@ -413,12 +475,12 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         },
       },
       "/api/v1/extract-constraints": {
-        get: textGet("extractTaskConstraintsByText", "Extract hard constraints, preferences, exclusions, budgets and deadlines", "text"),
-        post: textPost("extractTaskConstraints", "Extract hard constraints, preferences, exclusions, budgets and deadlines", "text"),
+        get: { ...textGet("extractTaskConstraintsByText", "Extract hard constraints, preferences, exclusions, budgets and deadlines", "text"), responses: constraintResponses },
+        post: { ...textPost("extractTaskConstraints", "Extract hard constraints, preferences, exclusions, budgets and deadlines", "text"), responses: constraintResponses },
       },
       "/api/v1/compress-context": {
-        get: { operationId: "compressAgentContextByText", summary: "Compress context into operational state", parameters: [{ name: "context", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }, { name: "max_items", in: "query", required: false, schema: { type: "integer", minimum: 3, maximum: 30, default: 12 } }], responses },
-        post: textPost("compressAgentContext", "Compress context into operational state", "context", 20000, { properties: { max_items: { type: "integer", minimum: 3, maximum: 30, default: 12 } } }),
+        get: { operationId: "compressAgentContextByText", summary: "Compress context into operational state", parameters: [{ name: "context", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }, { name: "max_items", in: "query", required: false, schema: { type: "integer", minimum: 3, maximum: 30, default: 12 } }], responses: compressionResponses },
+        post: { ...textPost("compressAgentContext", "Compress context into operational state", "context", 20000, { properties: { max_items: { type: "integer", minimum: 3, maximum: 30, default: 12 } } }), responses: compressionResponses },
       },
       "/api/v1/should-ask-human": {
         get: { operationId: "shouldAskHumanByTask", summary: "Decide whether to ask the human or safely infer and continue", parameters: [{ name: "task", in: "query", required: true, schema: { type: "string", maxLength: 10000 } }, { name: "known_context", in: "query", required: false, schema: { type: "string", maxLength: 15000 } }, { name: "proposed_assumption", in: "query", required: false, schema: { type: "string", maxLength: 4000 } }], responses },
