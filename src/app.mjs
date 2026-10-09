@@ -69,7 +69,7 @@ import {
 } from "./services.mjs";
 
 
-export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPage = safeFetchHtml } = {}) {
+export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPage = safeFetchHtml, paymentMiddlewareFactory = paymentMiddleware } = {}) {
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
@@ -719,7 +719,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       maxTimeoutSeconds: 120,
     });
 
-    app.use(paymentMiddleware({
+    const paidRoutes = {
       "GET /api/v1/hash": {
         accepts: accepts(config.prices.hash),
         description: "Cryptographic hash of a text string using sha256, sha512, sha1 or md5; returns hex and base64 for checksums, fingerprints, integrity checks and deterministic IDs",
@@ -941,10 +941,21 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
         "GET /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Extract agent-ready context from a public YouTube video: transcript highlights, timestamped key points, chapters, technical tutorial commands, action items, candidate claims, context pack and optional evidence Q&A. Use for summarize YouTube, video-to-context and command extraction workflows.", mimeType: "application/json", serviceName: "YouTube Video Context API", tags: ["youtube","video-summary","video-to-context","timestamps","tutorials"], extensions: videoAnalyzeBrowserDiscovery },
         "POST /api/v1/video-analyze": { accepts: accepts(config.prices.videoAnalyze), description: "Extract agent-ready context from a public YouTube video: transcript highlights, timestamped key points, chapters, technical tutorial commands, action items, candidate claims, context pack and optional evidence Q&A. Use for summarize YouTube, video-to-context and command extraction workflows.", mimeType: "application/json", serviceName: "YouTube Video Context API", tags: ["youtube","video-summary","video-to-context","timestamps","tutorials"], extensions: videoAnalyzeDiscovery },
       } : {}),
-    }, resourceServer, {
-      appName: "Agent Product Normalizer",
-      testnet: false,
-    }, browserPaywall));
+    };
+    let paidMiddleware = null;
+    const freeSamplePaths = new Set([
+      "/api/v1/hash/sample",
+      "/api/v1/task-gate/sample",
+      "/api/v1/no-progress-gate/sample",
+    ]);
+    app.use((req, res, next) => {
+      if (freeSamplePaths.has(req.path)) return next();
+      paidMiddleware ??= paymentMiddlewareFactory(paidRoutes, resourceServer, {
+        appName: "Agent Product Normalizer",
+        testnet: false,
+      }, browserPaywall);
+      return paidMiddleware(req, res, next);
+    });
   }
 
   const loadNormalized = async (url) => {
