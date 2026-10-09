@@ -34,16 +34,22 @@ export function createCatalogSweepDetector({ windowMs = 15_000, minDistinctPaths
 
   return {
     observe({ callerKey = "", path = "", hasPaymentProof = false, now = Date.now() } = {}) {
-      if (hasPaymentProof || !callerKey || !path) return false;
+      const empty = { isSweep: false, newlyDetected: false, distinctPaths: 0 };
+      if (hasPaymentProof || !callerKey || !path) return empty;
       const cutoff = now - windowMs;
       const key = digest(callerKey);
-      const state = clients.get(key) || { paths: new Map(), updatedAt: now };
+      const state = clients.get(key) || { paths: new Map(), updatedAt: now, sweepActive: false };
 
       for (const [seenPath, seenAt] of state.paths) {
         if (seenAt < cutoff) state.paths.delete(seenPath);
       }
+      if (state.paths.size < minDistinctPaths) state.sweepActive = false;
+
       state.paths.set(path, now);
       state.updatedAt = now;
+      const isSweep = state.paths.size >= minDistinctPaths;
+      const newlyDetected = isSweep && !state.sweepActive;
+      state.sweepActive = isSweep;
       clients.set(key, state);
 
       if (clients.size > maxClients) {
@@ -52,7 +58,7 @@ export function createCatalogSweepDetector({ windowMs = 15_000, minDistinctPaths
         }
       }
 
-      return state.paths.size >= minDistinctPaths;
+      return { isSweep, newlyDetected, distinctPaths: state.paths.size };
     },
   };
 }
