@@ -78,6 +78,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
 
   const freeSamplesByPaidPath = new Map([
     ["/api/v1/hash", "/api/v1/hash/sample"],
+    ["/api/v1/task-gate", "/api/v1/task-gate/sample"],
     ["/api/v1/no-progress-gate", "/api/v1/no-progress-gate/sample"],
   ]);
   app.use((req, res, next) => {
