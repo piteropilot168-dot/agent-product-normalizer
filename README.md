@@ -2,6 +2,25 @@
 
 Machine-first x402 utilities for autonomous agents.
 
+## CLI quickstart
+
+Inspect discovery and a free response shape without a wallet:
+
+```sh
+curl -sS https://agent-product-normalizer.vercel.app/openapi.json
+curl -sS https://agent-product-normalizer.vercel.app/api/v1/no-progress-gate/sample
+```
+
+Ask a paid route for its x402 requirements without spending:
+
+```sh
+curl -i -sS -X POST https://agent-product-normalizer.vercel.app/api/v1/no-progress-gate \
+  -H 'content-type: application/json' \
+  --data '{"history":[{"tool":"search","args":{"q":"agent loops"},"result":{"hits":0}},{"tool":"search","args":{"q":"agent loops"},"result":{"hits":0}}]}'
+```
+
+This returns HTTP 402 with a base64 `Payment-Required` header. Decode it or hand the response to an x402-compatible client, then retry with the client's `PAYMENT-SIGNATURE` proof. No paid handler runs and nothing settles until the facilitator verifies that proof.
+
 ## v0.9.6 — catalog-sweep detection
 
 - separates rapid multi-endpoint integration sweeps from isolated `priced_intent`

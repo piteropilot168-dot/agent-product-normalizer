@@ -16,12 +16,18 @@ test("homepage negotiates HTML and Markdown while preserving JSON default", asyn
   assert.equal(markdown.status, 200);
   assert.match(markdown.headers.get("content-type"), /^text\/markdown/);
   assert.match(markdown.headers.get("vary"), /Accept/i);
-  assert.match(await markdown.text(), /When to use this API/);
+  const markdownBody = await markdown.text();
+  assert.match(markdownBody, /When to use this API/);
+  assert.match(markdownBody, /## CLI quickstart/);
+  assert.match(markdownBody, /curl -i -sS -X POST/);
+  assert.match(markdownBody, /Payment-Required/);
 
   const html = await fetch(`${base}/`, { headers: { accept: "text/html" } });
   assert.equal(html.status, 200);
   assert.match(html.headers.get("content-type"), /^text\/html/);
-  assert.match(await html.text(), /<h1>Agent Product Normalizer<\/h1>/);
+  const htmlBody = await html.text();
+  assert.match(htmlBody, /<h1>Agent Product Normalizer<\/h1>/);
+  assert.match(htmlBody, /<h2>CLI quickstart<\/h2>/);
 
   const json = await fetch(`${base}/`);
   assert.equal(json.status, 200);
