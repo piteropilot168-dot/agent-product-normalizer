@@ -34,6 +34,8 @@ test("call value gate route accepts POST and GET JSON", async (t) => {
   const url = `http://127.0.0.1:${server.address().port}/api/v1/call-value-gate`;
   const post = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(proposed) });
   assert.equal(post.status, 200);
+  assert.equal(post.headers.get("x-agent402-free-sample"), "/api/v1/call-value-gate/sample");
+  assert.match(post.headers.get("link"), /<\/api\/v1\/call-value-gate\/sample>; rel="preview"/);
   assert.equal((await post.json()).decision, "EXECUTE");
   const get = await fetch(`${url}?input=${encodeURIComponent(JSON.stringify(proposed))}`);
   assert.equal(get.status, 200);
