@@ -31,3 +31,23 @@ test("No-Progress Gate publishes the paid and free-sample result contracts", () 
   assert.deepEqual(document.components.schemas.NoProgressGateResult.properties.decision.enum, ["CONTINUE", "REFRAME", "STOP_RETRYING", "ASK_HUMAN"]);
   assert.equal(document.components.schemas.NoProgressTrace.properties.last_call_fingerprint.pattern, "^[0-9a-f]{16}$");
 });
+
+test("Task Gate publishes one exact contract for paid and free-sample decisions", () => {
+  const document = openApiDocument("https://example.test");
+  const paid = document.paths["/api/v1/task-gate"].post.responses["200"];
+  const sample = document.paths["/api/v1/task-gate/sample"].get.responses["200"];
+  assert.equal(paid.content["application/json"].schema.$ref, "#/components/schemas/TaskGateResult");
+  assert.equal(sample.content["application/json"].schema.$ref, "#/components/schemas/FreeTaskGateSample");
+  assert.deepEqual(document.components.schemas.TaskGateResult.properties.decision.enum, ["PROCEED", "CLARIFY", "ASK_HUMAN", "STOP"]);
+  assert.equal(document.components.schemas.TaskGateResult.additionalProperties, false);
+});
+
+test("Call Value Gate publishes its decision and assessed-option contract", () => {
+  const document = openApiDocument("https://example.test");
+  for (const method of ["get", "post"]) {
+    const response = document.paths["/api/v1/call-value-gate"][method].responses["200"];
+    assert.equal(response.content["application/json"].schema.$ref, "#/components/schemas/CallValueGateResult");
+  }
+  assert.deepEqual(document.components.schemas.CallValueGateResult.properties.decision.enum, ["EXECUTE", "USE_ALTERNATIVE", "SKIP", "ASK_HUMAN"]);
+  assert.equal(document.components.schemas.CallAssessment.properties.within_budget.type, "boolean");
+});
