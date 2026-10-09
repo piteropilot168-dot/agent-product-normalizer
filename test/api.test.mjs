@@ -37,4 +37,9 @@ test("hash API returns deterministic output and rejects oversized UTF-8 input", 
   });
   assert.equal(tooLarge.status, 400);
   assert.match((await tooLarge.json()).error.message, /100000 UTF-8 bytes/);
+
+  const taskGate = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/task-gate?task=check`);
+  assert.equal(taskGate.status, 200);
+  assert.equal(taskGate.headers.get("x-agent402-free-sample"), "/api/v1/task-gate/sample");
+  assert.match(taskGate.headers.get("link"), /<\/api\/v1\/task-gate\/sample>; rel="preview"/);
 });
