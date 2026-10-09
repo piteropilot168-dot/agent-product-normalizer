@@ -572,13 +572,16 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
         if (!event) return;
 
         const path = (req.originalUrl || req.path).split("?")[0];
-        const catalogSweep = !hasPaymentProof && res.statusCode === 402 && catalogSweepDetector.observe({
-          callerKey: req.ip || "",
-          path,
-        });
+        const sweepObservation = !hasPaymentProof && res.statusCode === 402
+          ? catalogSweepDetector.observe({ callerKey: req.ip || "", path })
+          : { isSweep: false, newlyDetected: false, distinctPaths: 0 };
+        const catalogSweep = sweepObservation.isSweep;
+
+        // A catalog sweep is useful as one summary signal, not dozens of per-route logs.
+        if (catalogSweep && !sweepObservation.newlyDetected) return;
 
         console.info(JSON.stringify({
-          event,
+          event: sweepObservation.newlyDetected ? "x402_catalog_sweep_detected" : event,
           method: req.method,
           path,
           status: res.statusCode,
@@ -586,6 +589,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
           callerClass: classifyCaller(req.get("user-agent")),
           inputPresent,
           trafficClass: classifyX402Traffic({ hasPaymentProof, inputPresent, catalogSweep }),
+          distinctPaths: sweepObservation.newlyDetected ? sweepObservation.distinctPaths : undefined,
         }));
       });
       next();
