@@ -158,7 +158,67 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
     },
   };
 
-  app.get("/", (_req, res) => res.json(catalog));
+  const homepageMarkdown = (baseUrl) => `# Agent Product Normalizer
+
+Deterministic, low-cost x402 utilities that help autonomous agents avoid wasted model calls, repeated tool loops, stale context and unsafe execution. The API also turns long video transcripts and public product pages into compact, structured evidence.
+
+## When to use this API
+
+- Before an expensive model or tool call, use **Call Value Gate** to compare expected value, latency and remaining budget.
+- When a workflow repeats itself, use **No-Progress Gate** to stop unchanged calls and failed retry loops.
+- Before acting autonomously, use **Task Gate** to return PROCEED, CLARIFY, ASK_HUMAN or STOP.
+- When context may be stale, use **Context Freshness** to refresh only expired evidence.
+- When an agent needs to inspect the response shape before paying, start with a free sample.
+
+## Start without payment
+
+- [Hash sample](${baseUrl}/api/v1/hash/sample)
+- [Task Gate sample](${baseUrl}/api/v1/task-gate/sample)
+- [No-Progress Gate sample](${baseUrl}/api/v1/no-progress-gate/sample)
+
+## Machine-readable discovery
+
+- [OpenAPI](${baseUrl}/openapi.json)
+- [x402 manifest](${baseUrl}/.well-known/x402)
+- [Agent card](${baseUrl}/.well-known/agent-card.json)
+- [Agent instructions](${baseUrl}/llms.txt)
+- [JSON catalog](${baseUrl}/catalog)
+
+Paid calls use USDC on Base through x402. Prices and request schemas are published in the OpenAPI document and x402 manifest. Responses are deterministic where possible, and payment proof is verified by the configured facilitator before a paid handler runs.
+`;
+
+  const homepageHtml = (baseUrl) => {
+    const structuredData = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "Agent Product Normalizer",
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Web",
+      url: baseUrl,
+      description: "x402 utilities that reduce wasted calls, retries and context for autonomous agents.",
+      offers: { "@type": "Offer", priceCurrency: "USD", price: "0.0008" },
+    }).replace(/</g, "\\u003c");
+    return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Product Normalizer — x402 utilities for autonomous agents</title>
+<meta name="description" content="Deterministic x402 utilities for call-value gating, retry-loop prevention, context freshness, task safety, video context and commerce normalization.">
+<link rel="canonical" href="${baseUrl}/"><meta property="og:type" content="website"><meta property="og:title" content="Agent Product Normalizer"><meta property="og:description" content="Low-cost utilities that help autonomous agents waste fewer calls, tokens and retries.">
+<script type="application/ld+json">${structuredData}</script></head><body>
+<main><h1>Agent Product Normalizer</h1><p>Deterministic, low-cost x402 utilities that help autonomous agents avoid wasted model calls, repeated tool loops, stale context and unsafe execution. The API also converts long video transcripts and public product pages into compact structured evidence.</p>
+<h2>When agents should use it</h2><ul><li>Gate an expensive model or tool call by expected value, latency and budget.</li><li>Stop retry loops when calls or results no longer change.</li><li>Check whether an autonomous action should proceed, clarify, ask a human or stop.</li><li>Refresh only stale context instead of fetching everything again.</li></ul>
+<h2>Try before paying</h2><p><a href="/api/v1/hash/sample">Hash sample</a> · <a href="/api/v1/task-gate/sample">Task Gate sample</a> · <a href="/api/v1/no-progress-gate/sample">No-Progress sample</a></p>
+<h2>Developer resources</h2><p><a href="/openapi.json">OpenAPI</a> · <a href="/.well-known/x402">x402 manifest</a> · <a href="/.well-known/agent-card.json">Agent card</a> · <a href="/llms.txt">Agent instructions</a> · <a href="/catalog">JSON catalog</a></p>
+<p>Paid calls use USDC on Base through x402. Current prices, input constraints and request schemas are machine-readable in OpenAPI and the x402 manifest.</p></main></body></html>`;
+  };
+
+  app.get("/", (req, res) => {
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.vary("Accept");
+    const accept = req.get("accept") || "";
+    if (accept.includes("text/markdown")) return res.type("text/markdown").send(homepageMarkdown(baseUrl));
+    if (accept.includes("text/html")) return res.type("text/html").send(homepageHtml(baseUrl));
+    return res.json(catalog);
+  });
   app.get("/catalog", (_req, res) => res.json(catalog));
   app.get("/health", (_req, res) => res.json({ ok: true, version: "0.9.6" }));
   app.get("/openapi.json", (req, res) => res.json(openApiDocument(`${req.protocol}://${req.get("host")}`)));
@@ -1135,6 +1195,15 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   app.get("/api/v1/video-answer-question",videoQa); app.post("/api/v1/video-answer-question",videoQa);
   const videoAnalyzeHandler=async(req,res,next)=>{try{const source=req.method==="GET"?req.query:req.body;const fetched=await fetchVideoTranscript(source?.url,{apiKey:config.transcriptProviderApiKey,lang:source?.lang,timeoutMs:15000});const analysis=videoAnalyze(fetched.transcript,{question:source?.question||"",keyPointLimit:source?.key_point_limit||10,chapterTarget:source?.chapter_target||8,segments:fetched.segments||[]});res.set("cache-control","no-store").json({source_url:fetched.source_url,lang:fetched.lang,provider:fetched.provider,segment_count:Array.isArray(fetched.segments)?fetched.segments.length:0,...analysis});}catch(error){next(error);}};
   app.get("/api/v1/video-analyze",videoAnalyzeHandler); app.post("/api/v1/video-analyze",videoAnalyzeHandler);
+
+  app.use((req, res) => {
+    const docsUrl = `${req.protocol}://${req.get("host")}/llms.txt`;
+    res.vary("Accept");
+    if ((req.get("accept") || "").includes("text/markdown")) {
+      return res.status(404).type("text/markdown").send(`# Resource not found\n\nNo route exists for \`${req.path}\`. See [agent instructions and available routes](${docsUrl}).\n`);
+    }
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "resource not found", docs: docsUrl } });
+  });
 
   app.use((error, _req, res, _next) => {
     if (error instanceof InputError) {
