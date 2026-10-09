@@ -53,3 +53,24 @@ test("Call Value Gate publishes its decision and assessed-option contract", () =
   const sample = document.paths["/api/v1/call-value-gate/sample"].get.responses["200"];
   assert.equal(sample.content["application/json"].schema.$ref, "#/components/schemas/FreeCallValueGateSample");
 });
+
+test("Core workflow tools publish exact response contracts for GET and POST", () => {
+  const document = openApiDocument("https://example.test");
+  const expected = {
+    "/api/v1/clarify": "ClarifyTaskResult",
+    "/api/v1/extract-constraints": "ConstraintExtractionResult",
+    "/api/v1/compress-context": "ContextCompressionResult",
+  };
+
+  for (const [path, schema] of Object.entries(expected)) {
+    for (const method of ["get", "post"]) {
+      const response = document.paths[path][method].responses["200"];
+      assert.equal(response.content["application/json"].schema.$ref, `#/components/schemas/${schema}`);
+    }
+    assert.equal(document.components.schemas[schema].additionalProperties, false);
+  }
+
+  assert.equal(document.components.schemas.ClarifyTaskResult.properties.must_ask_user.type, "boolean");
+  assert.equal(document.components.schemas.ConstraintExtractionResult.properties.detected_count.minimum, 0);
+  assert.equal(document.components.schemas.ContextCompressionResult.properties.stats.$ref, "#/components/schemas/ContextCompressionStats");
+});
