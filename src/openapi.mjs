@@ -32,6 +32,16 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           description: "Advertised per-call price for this product.",
           schema: { type: "string", pattern: "^\\$[0-9]+(?:\\.[0-9]+)?$" },
         },
+        "Cache-Control": {
+          required: true,
+          description: "Prevents payment challenges and paid responses from being cached or shared between callers.",
+          schema: { type: "string", const: "no-store" },
+        },
+        Vary: {
+          required: true,
+          description: "Identifies the supported payment-proof headers that change the response.",
+          schema: { type: "string", pattern: "PAYMENT-SIGNATURE.*X-PAYMENT|X-PAYMENT.*PAYMENT-SIGNATURE" },
+        },
       },
       content: { "application/json": { schema: { type: "object", maxProperties: 0 } } },
     },
