@@ -35,6 +35,13 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
       content: { "application/json": { schema: { $ref: "#/components/schemas/HashResult" } } },
     },
   };
+  const noProgressResponses = {
+    ...responses,
+    "200": {
+      description: "No-progress decision and compact trace diagnostics",
+      content: { "application/json": { schema: { $ref: "#/components/schemas/NoProgressGateResult" } } },
+    },
+  };
 
   const singleGet = (operationId, summary) => ({ operationId, summary, parameters: [{ name: "url", in: "query", required: true, schema: url }], responses });
   const singlePost = (operationId, summary) => ({
@@ -95,6 +102,65 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
             hex: { type: "string", pattern: "^[0-9a-f]+$" },
             base64: { type: "string", contentEncoding: "base64" },
             security_note: { type: ["string", "null"] },
+          },
+          additionalProperties: false,
+        },
+        NoProgressTrace: {
+          type: "object",
+          required: ["event_count", "unique_call_count", "unique_result_count", "exact_call_repeats", "unchanged_result_repeats", "repeated_failures", "last_call_fingerprint", "last_result_fingerprint"],
+          properties: {
+            event_count: { type: "integer", minimum: 2, maximum: 100 },
+            unique_call_count: { type: "integer", minimum: 1, maximum: 100 },
+            unique_result_count: { type: "integer", minimum: 1, maximum: 100 },
+            exact_call_repeats: { type: "integer", minimum: 1, maximum: 100 },
+            unchanged_result_repeats: { type: "integer", minimum: 1, maximum: 100 },
+            repeated_failures: { type: "integer", minimum: 0, maximum: 100 },
+            last_call_fingerprint: { type: "string", pattern: "^[0-9a-f]{16}$" },
+            last_result_fingerprint: { type: "string", pattern: "^[0-9a-f]{16}$" },
+          },
+          additionalProperties: false,
+        },
+        NoProgressBudget: {
+          type: "object",
+          required: ["exceeded", "call_limit", "elapsed_limit_ms", "cost_limit_usd", "observed_elapsed_ms", "observed_cost_usd"],
+          properties: {
+            exceeded: { type: "boolean" },
+            call_limit: { type: "number", exclusiveMinimum: 0, maximum: 1000 },
+            elapsed_limit_ms: { type: ["number", "null"], exclusiveMinimum: 0, maximum: 86400000 },
+            cost_limit_usd: { type: ["number", "null"], exclusiveMinimum: 0, maximum: 1000000 },
+            observed_elapsed_ms: { type: "number", minimum: 0 },
+            observed_cost_usd: { type: "number", minimum: 0 },
+          },
+          additionalProperties: false,
+        },
+        NoProgressGateResult: {
+          type: "object",
+          required: ["decision", "progress_score", "reason", "next_action", "calls_avoided_estimate", "trace", "budget"],
+          properties: {
+            decision: { type: "string", enum: ["CONTINUE", "REFRAME", "STOP_RETRYING", "ASK_HUMAN"] },
+            progress_score: { type: "number", minimum: 0, maximum: 1 },
+            reason: { type: "string", minLength: 1 },
+            next_action: { type: "string", minLength: 1 },
+            calls_avoided_estimate: { type: "integer", minimum: 0, maximum: 10 },
+            trace: { $ref: "#/components/schemas/NoProgressTrace" },
+            budget: { $ref: "#/components/schemas/NoProgressBudget" },
+          },
+          additionalProperties: false,
+        },
+        FreeNoProgressGateSample: {
+          type: "object",
+          required: ["free_sample", "input", "decision", "progress_score", "reason", "next_action", "calls_avoided_estimate", "trace", "budget", "next"],
+          properties: {
+            free_sample: { type: "boolean", const: true },
+            input: { type: "object", additionalProperties: true },
+            decision: { type: "string", enum: ["CONTINUE", "REFRAME", "STOP_RETRYING", "ASK_HUMAN"] },
+            progress_score: { type: "number", minimum: 0, maximum: 1 },
+            reason: { type: "string", minLength: 1 },
+            next_action: { type: "string", minLength: 1 },
+            calls_avoided_estimate: { type: "integer", minimum: 0, maximum: 10 },
+            trace: { $ref: "#/components/schemas/NoProgressTrace" },
+            budget: { $ref: "#/components/schemas/NoProgressBudget" },
+            next: { type: "object", additionalProperties: true },
           },
           additionalProperties: false,
         },
@@ -253,7 +319,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           responses: {
             "200": {
               description: "Free fixed sample; no payment required.",
-              content: { "application/json": { example: {
+              content: { "application/json": { schema: { $ref: "#/components/schemas/FreeNoProgressGateSample" }, example: {
                 free_sample: true,
                 input: { history: [{ tool: "web_search", args: { query: "agent loop" }, result: { hits: 0 }, status: "success", elapsed_ms: 120, cost_usd: 0.002 }], exact_repeat_limit: 3, unchanged_result_limit: 3 },
                 decision: "STOP_RETRYING",
@@ -285,7 +351,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
               allow_human_escalation: { type: "boolean", default: false }
             }, additionalProperties: false
           } } } },
-          responses
+          responses: noProgressResponses
         }
       },
       "/api/v1/retry-decision": {
