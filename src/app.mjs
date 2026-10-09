@@ -178,6 +178,25 @@ Deterministic, low-cost x402 utilities that help autonomous agents avoid wasted 
 - [Call Value Gate sample](${baseUrl}/api/v1/call-value-gate/sample)
 - [No-Progress Gate sample](${baseUrl}/api/v1/no-progress-gate/sample)
 
+## CLI quickstart
+
+Inspect the contract and a free result without a wallet:
+
+\`\`\`sh
+curl -sS ${baseUrl}/openapi.json
+curl -sS ${baseUrl}/api/v1/no-progress-gate/sample
+\`\`\`
+
+Ask a paid route for its x402 requirements without spending. The response is HTTP 402 and includes the \`Payment-Required\` header; no handler runs and no payment is settled:
+
+\`\`\`sh
+curl -i -sS -X POST ${baseUrl}/api/v1/no-progress-gate \\
+  -H 'content-type: application/json' \\
+  --data '{"history":[{"tool":"search","args":{"q":"agent loops"},"result":{"hits":0}},{"tool":"search","args":{"q":"agent loops"},"result":{"hits":0}}]}'
+\`\`\`
+
+Decode the returned base64 \`Payment-Required\` value or pass the response to an x402-compatible client, then retry with its \`PAYMENT-SIGNATURE\` proof.
+
 ## Machine-readable discovery
 
 - [OpenAPI](${baseUrl}/openapi.json)
@@ -209,6 +228,8 @@ Paid calls use USDC on Base through x402. Prices and request schemas are publish
 <main><h1>Agent Product Normalizer</h1><p>Deterministic, low-cost x402 utilities that help autonomous agents avoid wasted model calls, repeated tool loops, stale context and unsafe execution. The API also converts long video transcripts and public product pages into compact structured evidence.</p>
 <h2>When agents should use it</h2><ul><li>Gate an expensive model or tool call by expected value, latency and budget.</li><li>Stop retry loops when calls or results no longer change.</li><li>Check whether an autonomous action should proceed, clarify, ask a human or stop.</li><li>Refresh only stale context instead of fetching everything again.</li></ul>
 <h2>Try before paying</h2><p><a href="/api/v1/hash/sample">Hash sample</a> · <a href="/api/v1/task-gate/sample">Task Gate sample</a> · <a href="/api/v1/call-value-gate/sample">Call Value sample</a> · <a href="/api/v1/no-progress-gate/sample">No-Progress sample</a></p>
+<h2>CLI quickstart</h2><p>Inspect the contract and a free result without a wallet:</p><pre><code>curl -sS ${baseUrl}/openapi.json
+curl -sS ${baseUrl}/api/v1/no-progress-gate/sample</code></pre><p>To inspect payment requirements without spending, call a paid route without a payment proof. The HTTP 402 response contains the <code>Payment-Required</code> header; retry through an x402-compatible client with its <code>PAYMENT-SIGNATURE</code> proof.</p>
 <h2>Developer resources</h2><p><a href="/openapi.json">OpenAPI</a> · <a href="/.well-known/x402">x402 manifest</a> · <a href="/.well-known/agent-card.json">Agent card</a> · <a href="/llms.txt">Agent instructions</a> · <a href="/catalog">JSON catalog</a></p>
 <p>Paid calls use USDC on Base through x402. Current prices, input constraints and request schemas are machine-readable in OpenAPI and the x402 manifest.</p></main></body></html>`;
   };
@@ -257,6 +278,14 @@ Machine-first paid utilities for agent workflows: high-frequency hashing, video 
 Base URL: ${baseUrl}
 Payment: USDC on Base (eip155:8453)
 Pay-to: ${config.payTo}
+
+CLI quickstart (no wallet or payment):
+- curl -sS ${baseUrl}/openapi.json
+- curl -sS ${baseUrl}/api/v1/no-progress-gate/sample
+
+Inspect x402 requirements without spending:
+- curl -i -sS -X POST ${baseUrl}/api/v1/no-progress-gate -H 'content-type: application/json' --data '{"history":[{"tool":"search","args":{"q":"agent loops"},"result":{"hits":0}},{"tool":"search","args":{"q":"agent loops"},"result":{"hits":0}}]}'
+- Expect HTTP 402 with Payment-Required. Decode its base64 value or pass the response to an x402-compatible client, then retry with the client's PAYMENT-SIGNATURE proof. The paid handler does not run until the facilitator verifies that proof.
 
 High-frequency deterministic utility:
 - Free sample: GET /api/v1/hash/sample returns a fixed SHA-256 example without payment. Try it before integrating; your own text uses POST /api/v1/hash at ${config.prices.hash} via x402. Maximum 100000 UTF-8 bytes; SHA-1/MD5 are legacy only.
