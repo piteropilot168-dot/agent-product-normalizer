@@ -21,6 +21,8 @@ test("Hash API publishes its success contract and x402 payment headers", () => {
   assert.equal(responses["402"].headers["Payment-Required"].required, true);
   assert.equal(responses["402"].headers["X-Agent402-Product"].required, true);
   assert.equal(responses["402"].headers["X-Agent402-Price"].required, true);
+  assert.equal(responses["402"].headers["Cache-Control"].schema.const, "no-store");
+  assert.equal(responses["402"].headers.Vary.required, true);
   assert.equal(responses["402"].content["application/json"].schema.maxProperties, 0);
 });
 
