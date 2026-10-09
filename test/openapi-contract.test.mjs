@@ -74,3 +74,23 @@ test("Core workflow tools publish exact response contracts for GET and POST", ()
   assert.equal(document.components.schemas.ConstraintExtractionResult.properties.detected_count.minimum, 0);
   assert.equal(document.components.schemas.ContextCompressionResult.properties.stats.$ref, "#/components/schemas/ContextCompressionStats");
 });
+
+test("Observed context-safety tools publish exact response contracts", () => {
+  const document = openApiDocument("https://example.test");
+  const expected = {
+    "/api/v1/dedupe-facts": "DedupeFactsResult",
+    "/api/v1/redact-secrets": "SecretRedactionResult",
+    "/api/v1/handoff-diff": "HandoffDiffResult",
+  };
+
+  for (const [path, schema] of Object.entries(expected)) {
+    for (const method of ["get", "post"]) {
+      assert.equal(document.paths[path][method].responses["200"].content["application/json"].schema.$ref, `#/components/schemas/${schema}`);
+    }
+    assert.equal(document.components.schemas[schema].additionalProperties, false);
+  }
+
+  assert.equal(document.components.schemas.DedupeFactsResult.properties.duplicates.items.$ref, "#/components/schemas/DuplicateFact");
+  assert.deepEqual(document.components.schemas.SecretRedactionResult.properties.types.items.enum, ["evm-private-key", "jwt", "generic-api-key", "aws-access-key", "github-token"]);
+  assert.equal(document.components.schemas.HandoffDiffResult.properties.changed.type, "boolean");
+});

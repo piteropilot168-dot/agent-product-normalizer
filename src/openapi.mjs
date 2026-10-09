@@ -66,6 +66,9 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
   const clarifyResponses = typedResponses("ClarifyTaskResult", "Execution-ready task clarification");
   const constraintResponses = typedResponses("ConstraintExtractionResult", "Extracted task constraints");
   const compressionResponses = typedResponses("ContextCompressionResult", "Compressed operational context");
+  const dedupeResponses = typedResponses("DedupeFactsResult", "Deduplicated facts and duplicate mapping");
+  const redactionResponses = typedResponses("SecretRedactionResult", "Redacted text and detected secret categories");
+  const handoffDiffResponses = typedResponses("HandoffDiffResult", "Added and removed handoff facts");
 
   const singleGet = (operationId, summary) => ({ operationId, summary, parameters: [{ name: "url", in: "query", required: true, schema: url }], responses });
   const singlePost = (operationId, summary) => ({
@@ -178,6 +181,51 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
             blockers: { type: "array", maxItems: 30, items: { type: "string" } },
             next_actions: { type: "array", maxItems: 30, items: { type: "string" } },
             stats: { $ref: "#/components/schemas/ContextCompressionStats" },
+          },
+          additionalProperties: false,
+        },
+        DuplicateFact: {
+          type: "object",
+          required: ["index", "text", "duplicate_of", "similarity"],
+          properties: {
+            index: { type: "integer", minimum: 0, maximum: 59 },
+            text: { type: "string" },
+            duplicate_of: { type: "integer", minimum: 0, maximum: 59 },
+            similarity: { type: "number", minimum: 0, maximum: 1 },
+          },
+          additionalProperties: false,
+        },
+        DedupeFactsResult: {
+          type: "object",
+          required: ["input_count", "unique_count", "unique_facts", "duplicates"],
+          properties: {
+            input_count: { type: "integer", minimum: 1, maximum: 60 },
+            unique_count: { type: "integer", minimum: 1, maximum: 60 },
+            unique_facts: { type: "array", minItems: 1, maxItems: 60, items: { type: "string" } },
+            duplicates: { type: "array", maxItems: 59, items: { $ref: "#/components/schemas/DuplicateFact" } },
+          },
+          additionalProperties: false,
+        },
+        SecretRedactionResult: {
+          type: "object",
+          required: ["redacted_text", "redaction_count", "types", "changed"],
+          properties: {
+            redacted_text: { type: "string", maxLength: 30000 },
+            redaction_count: { type: "integer", minimum: 0 },
+            types: { type: "array", uniqueItems: true, items: { type: "string", enum: ["evm-private-key", "jwt", "generic-api-key", "aws-access-key", "github-token"] } },
+            changed: { type: "boolean" },
+          },
+          additionalProperties: false,
+        },
+        HandoffDiffResult: {
+          type: "object",
+          required: ["before_count", "after_count", "added", "removed", "changed"],
+          properties: {
+            before_count: { type: "integer", minimum: 1, maximum: 60 },
+            after_count: { type: "integer", minimum: 1, maximum: 60 },
+            added: { type: "array", maxItems: 60, items: { type: "string" } },
+            removed: { type: "array", maxItems: 60, items: { type: "string" } },
+            changed: { type: "boolean" },
           },
           additionalProperties: false,
         },
@@ -486,7 +534,10 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         get: { operationId: "shouldAskHumanByTask", summary: "Decide whether to ask the human or safely infer and continue", parameters: [{ name: "task", in: "query", required: true, schema: { type: "string", maxLength: 10000 } }, { name: "known_context", in: "query", required: false, schema: { type: "string", maxLength: 15000 } }, { name: "proposed_assumption", in: "query", required: false, schema: { type: "string", maxLength: 4000 } }], responses },
         post: { operationId: "shouldAskHuman", summary: "Decide whether to ask the human or safely infer and continue", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["task"], properties: { task: { type: "string", maxLength: 10000 }, known_context: { type: "string", maxLength: 15000 }, proposed_assumption: { type: "string", maxLength: 4000 } }, additionalProperties: false } } } }, responses },
       },
-      "/api/v1/dedupe-facts": { get: textGet("dedupeFactsByText", "Deduplicate facts and near-duplicate notes", "text"), post: textPost("dedupeFacts", "Deduplicate facts and near-duplicate notes", "text") },
+      "/api/v1/dedupe-facts": {
+        get: { ...textGet("dedupeFactsByText", "Deduplicate facts and near-duplicate notes", "text"), responses: dedupeResponses },
+        post: { ...textPost("dedupeFacts", "Deduplicate facts and near-duplicate notes", "text"), responses: dedupeResponses },
+      },
       "/api/v1/detect-conflicts": { get: textGet("detectConflictsByText", "Detect contradictory facts and numeric mismatches", "text"), post: textPost("detectConflicts", "Detect contradictory facts and numeric mismatches", "text") },
       "/api/v1/extract-actions": { get: textGet("extractActionsByText", "Extract concrete action items from text", "text"), post: textPost("extractActions", "Extract concrete action items from text", "text") },
       "/api/v1/make-search-query": { get: textGet("makeSearchQueryByTask", "Turn a verbose task into compact search queries", "task", 8000), post: textPost("makeSearchQuery", "Turn a verbose task into compact search queries", "task", 8000) },
@@ -544,10 +595,13 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         post: { operationId: "retryDecision", summary: "Decide whether/how to retry an API or tool failure", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["status"], properties: { status: { type: "integer" }, error: { type: "string", maxLength: 4000 }, attempt: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false } } } }, responses },
       },
       "/api/v1/prompt-injection-scan": { get: textGet("promptInjectionScanByText", "Scan untrusted text for common prompt-injection patterns", "text"), post: textPost("promptInjectionScan", "Scan untrusted text for common prompt-injection patterns", "text") },
-      "/api/v1/redact-secrets": { get: textGet("redactSecretsByText", "Redact common credentials and token patterns", "text"), post: textPost("redactSecrets", "Redact common credentials and token patterns", "text") },
+      "/api/v1/redact-secrets": {
+        get: { ...textGet("redactSecretsByText", "Redact common credentials and token patterns", "text"), responses: redactionResponses },
+        post: { ...textPost("redactSecrets", "Redact common credentials and token patterns", "text"), responses: redactionResponses },
+      },
       "/api/v1/handoff-diff": {
-        get: { operationId: "handoffDiffByText", summary: "Report what changed between two agent states", parameters: [{ name: "before", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }, { name: "after", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }], responses },
-        post: { operationId: "handoffDiff", summary: "Report what changed between two agent states", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["before","after"], properties: { before: { type: "string", maxLength: 20000 }, after: { type: "string", maxLength: 20000 } }, additionalProperties: false } } } }, responses },
+        get: { operationId: "handoffDiffByText", summary: "Report what changed between two agent states", parameters: [{ name: "before", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }, { name: "after", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }], responses: handoffDiffResponses },
+        post: { operationId: "handoffDiff", summary: "Report what changed between two agent states", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["before","after"], properties: { before: { type: "string", maxLength: 20000 }, after: { type: "string", maxLength: 20000 } }, additionalProperties: false } } } }, responses: handoffDiffResponses },
       },
       "/api/v1/choose-next-step": {
         get: { operationId: "chooseNextStepByText", summary: "Rank candidate next actions against current state", parameters: [{ name: "state", in: "query", required: true, schema: { type: "string", maxLength: 12000 } }, { name: "actions", in: "query", required: true, schema: { type: "string", maxLength: 12000 } }], responses },
