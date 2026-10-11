@@ -391,6 +391,29 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           },
           additionalProperties: false,
         },
+        NoProgressPaidReplay: {
+          type: "object",
+          required: ["method", "resource", "content_type", "reuse_request_body", "payment", "price", "payment_flow"],
+          properties: {
+            method: { type: "string", const: "POST" },
+            resource: { type: "string", format: "uri" },
+            content_type: { type: "string", const: "application/json" },
+            reuse_request_body: { type: "boolean", const: true },
+            payment: { type: "string", const: "x402" },
+            price: { type: "string", pattern: "^\\$[0-9]+(?:\\.[0-9]+)?$" },
+            payment_flow: {
+              type: "object",
+              required: ["initial_status", "requirements_header", "proof_header"],
+              properties: {
+                initial_status: { type: "integer", const: 402 },
+                requirements_header: { type: "string", const: "Payment-Required" },
+                proof_header: { type: "string", const: "PAYMENT-SIGNATURE" },
+              },
+              additionalProperties: false,
+            },
+          },
+          additionalProperties: false,
+        },
         FreeNoProgressGateSample: {
           type: "object",
           required: ["free_sample", "input", "decision", "progress_score", "reason", "next_action", "calls_avoided_estimate", "trace", "budget", "next"],
@@ -425,7 +448,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
               additionalProperties: false,
             },
             result: { $ref: "#/components/schemas/NoProgressGateResult" },
-            next: { type: "object", additionalProperties: true },
+            next: { $ref: "#/components/schemas/NoProgressPaidReplay" },
           },
           additionalProperties: false,
         },
@@ -620,7 +643,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         post: {
           operationId: "tryNoProgressGate",
           summary: "Try No-Progress Gate free with a constrained caller-supplied trace",
-          description: "Evaluates 2-3 events with default thresholds. The JSON request is limited to 12000 UTF-8 bytes; use the paid endpoint for longer histories, custom thresholds, budgets or human escalation.",
+          description: "Evaluates 2-3 events with default thresholds. The JSON request is limited to 12000 UTF-8 bytes. The response includes a typed paid replay instruction so an x402 client can reuse the identical request body without reconstructing it; use the paid endpoint for longer histories, custom thresholds, budgets or human escalation.",
           requestBody: { required: true, content: { "application/json": { schema: {
             type: "object", required: ["history"],
             properties: {
