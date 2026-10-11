@@ -693,6 +693,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       res.set("Cache-Control", "no-store");
       res.vary("PAYMENT-SIGNATURE");
       res.vary("X-PAYMENT");
+      res.append("Link", '<https://docs.x402.org/getting-started/quickstart-for-buyers>; rel="help"; type="text/html"');
       if (product) {
         res.set("X-Agent402-Product", product.id);
         res.set("X-Agent402-Price", product.price);

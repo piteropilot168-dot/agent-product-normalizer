@@ -15,7 +15,8 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           schema: { type: "string", minLength: 1 },
         },
         Link: {
-          description: "Optional free preview route, using rel=preview, when a sample exists.",
+          required: true,
+          description: "Official x402 buyer instructions using rel=help, plus an optional free preview route using rel=preview when a sample exists.",
           schema: { type: "string" },
         },
         "X-Agent402-Free-Sample": {
