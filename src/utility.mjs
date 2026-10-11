@@ -16,8 +16,9 @@ export function classifyCaller(userAgent = "") {
   return "unknown";
 }
 
-export function classifyX402Traffic({ hasPaymentProof = false, inputPresent = false, catalogSweep = false, integrationProbe = false, intentConfirmed = false } = {}) {
+export function classifyX402Traffic({ hasPaymentProof = false, callerClass = "unknown", inputPresent = false, catalogSweep = false, integrationProbe = false, intentConfirmed = false } = {}) {
   if (hasPaymentProof) return "payment_attempt";
+  if (callerClass === "crawler") return "crawler_probe";
   if (catalogSweep) return "catalog_sweep";
   if (integrationProbe) return "integration_probe";
   if (intentConfirmed) return "priced_intent";

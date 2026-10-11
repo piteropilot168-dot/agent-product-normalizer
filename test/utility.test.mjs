@@ -14,6 +14,8 @@ test("caller classification separates crawlers, agents, browsers and unknown cli
 test("x402 traffic classification keeps discovery separate from buyer intent", () => {
   assert.equal(classifyX402Traffic(), "discovery_probe");
   assert.equal(classifyX402Traffic({ inputPresent: true }), "priced_intent_candidate");
+  assert.equal(classifyX402Traffic({ callerClass: "crawler", inputPresent: true }), "crawler_probe");
+  assert.equal(classifyX402Traffic({ callerClass: "crawler", inputPresent: true, intentConfirmed: true }), "crawler_probe");
   assert.equal(classifyX402Traffic({ inputPresent: true, intentConfirmed: true }), "priced_intent");
   assert.equal(classifyX402Traffic({ inputPresent: true, integrationProbe: true }), "integration_probe");
   assert.equal(classifyX402Traffic({ catalogSweep: true, inputPresent: true }), "catalog_sweep");
