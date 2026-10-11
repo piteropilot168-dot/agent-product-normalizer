@@ -90,6 +90,10 @@ test("public discovery and free samples do not initialize the payment middleware
   assert.equal(freeTryBody.free_try, true);
   assert.equal(freeTryBody.result.trace.event_count, 2);
   assert.equal(freeTryBody.next.payment, "x402");
+  assert.equal(freeTryBody.next.reuse_request_body, true);
+  assert.equal(freeTryBody.next.payment_flow.initial_status, 402);
+  assert.equal(freeTryBody.next.payment_flow.requirements_header, "Payment-Required");
+  assert.equal(freeTryBody.next.payment_flow.proof_header, "PAYMENT-SIGNATURE");
   assert.equal(paymentInitializations, 0);
 
   const tooManyEvents = await fetch(`${base}/api/v1/no-progress-gate/try`, {

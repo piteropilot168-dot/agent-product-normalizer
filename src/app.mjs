@@ -330,7 +330,7 @@ Agent workflow utilities:
 - GET/POST /api/v1/retry-decision — ${config.prices.retryDecision} — classify tool/API failures and decide whether/how to retry.
 - POST /api/v1/no-progress-gate — ${config.prices.noProgressGate} — fingerprint a rolling tool trace and return CONTINUE, REFRAME, STOP_RETRYING or ASK_HUMAN before another wasteful call.
 - Free sample: GET /api/v1/no-progress-gate/sample returns a fixed repeated-search trace without payment.
-- Free try: POST /api/v1/no-progress-gate/try evaluates 2-3 caller-supplied events (maximum 12 KB, default thresholds only) before using the full paid gate.
+- Free try: POST /api/v1/no-progress-gate/try evaluates 2-3 caller-supplied events (maximum 12 KB, default thresholds only). Its typed next object tells an x402 client to reuse the identical request body and names the 402 requirements and proof headers for the paid gate.
 - GET/POST /api/v1/prompt-injection-scan — ${config.prices.promptInjectionScan} — scan untrusted text for common prompt-injection patterns.
 - GET/POST /api/v1/redact-secrets — ${config.prices.redactSecrets} — redact common credential/token patterns before handoff or logging.
 - GET/POST /api/v1/handoff-diff — ${config.prices.handoffDiff} — report what changed between two agent states.
@@ -1345,7 +1345,19 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
         free_try: true,
         limits: { min_events: 2, max_events: 3, max_request_bytes: 12_000, thresholds: "defaults" },
         result,
-        next: { method: "POST", resource, content_type: "application/json", payment: "x402", price: config.prices.noProgressGate },
+        next: {
+          method: "POST",
+          resource,
+          content_type: "application/json",
+          reuse_request_body: true,
+          payment: "x402",
+          price: config.prices.noProgressGate,
+          payment_flow: {
+            initial_status: 402,
+            requirements_header: "Payment-Required",
+            proof_header: "PAYMENT-SIGNATURE",
+          },
+        },
       });
     } catch (error) { next(error); }
   });
