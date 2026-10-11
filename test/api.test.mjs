@@ -50,6 +50,21 @@ test("hash API returns deterministic output and rejects oversized UTF-8 input", 
   assert.equal(callValueBody.decision, "EXECUTE");
   assert.equal(callValueBody.next.path, "/api/v1/call-value-gate");
 
+  const missingSample = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/missing-fields/sample`);
+  assert.equal(missingSample.status, 200);
+  const missingSampleBody = await missingSample.json();
+  assert.equal(missingSampleBody.free_sample, true);
+  assert.equal(missingSampleBody.complete, false);
+  assert.deepEqual(missingSampleBody.missing, ["deadline"]);
+  assert.equal(missingSampleBody.next.path, "/api/v1/missing-fields");
+
+  const injectionSample = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/prompt-injection-scan/sample`);
+  assert.equal(injectionSample.status, 200);
+  const injectionSampleBody = await injectionSample.json();
+  assert.equal(injectionSampleBody.free_sample, true);
+  assert.equal(injectionSampleBody.suspicious, true);
+  assert.equal(injectionSampleBody.next.path, "/api/v1/prompt-injection-scan");
+
   const noProgress = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/no-progress-gate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -74,7 +89,7 @@ test("public discovery and free samples do not initialize the payment middleware
   t.after(() => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
   const base = `http://127.0.0.1:${server.address().port}`;
 
-  for (const path of ["/openapi.json", "/llms.txt", "/sitemap.xml", "/robots.txt", "/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/call-value-gate/sample", "/api/v1/no-progress-gate/sample"]) {
+  for (const path of ["/openapi.json", "/llms.txt", "/sitemap.xml", "/robots.txt", "/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/call-value-gate/sample", "/api/v1/missing-fields/sample", "/api/v1/prompt-injection-scan/sample", "/api/v1/no-progress-gate/sample"]) {
     assert.equal((await fetch(`${base}${path}`)).status, 200);
   }
   const freeTry = await fetch(`${base}/api/v1/no-progress-gate/try`, {
