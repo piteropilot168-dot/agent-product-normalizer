@@ -82,12 +82,22 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
     ["/api/v1/call-value-gate", "/api/v1/call-value-gate/sample"],
     ["/api/v1/no-progress-gate", "/api/v1/no-progress-gate/sample"],
   ]);
+  const freeTriesByPaidPath = new Map([
+    ["/api/v1/no-progress-gate", "/api/v1/no-progress-gate/try"],
+  ]);
   app.use((req, res, next) => {
     const sample = freeSamplesByPaidPath.get(req.path);
+    const freeTry = freeTriesByPaidPath.get(req.path);
+    const links = [];
     if (sample) {
-      res.set("Link", `<${sample}>; rel="preview"; type="application/json"`);
+      links.push(`<${sample}>; rel="preview"; type="application/json"`);
       res.set("X-Agent402-Free-Sample", sample);
     }
+    if (freeTry) {
+      links.push(`<${freeTry}>; rel="alternate"; type="application/json"; title="Free constrained try"`);
+      res.set("X-Agent402-Free-Try", freeTry);
+    }
+    if (links.length) res.set("Link", links.join(", "));
     next();
   });
 
@@ -694,6 +704,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       const path = (req.originalUrl || req.path).split("?")[0];
       const product = productByPath.get(path);
       const freeSample = product?.free_sample || freeSamplesByPaidPath.get(path);
+      const freeTry = product?.free_try || freeTriesByPaidPath.get(path);
       // Paid responses and payment challenges must never be reused across callers.
       // Vary also prevents a cache from treating an unsigned 402 as equivalent to
       // a request carrying either supported x402 proof header.
@@ -705,6 +716,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
         res.set("X-Agent402-Product", product.id);
         res.set("X-Agent402-Price", product.price);
         if (freeSample) res.set("X-Agent402-Free-Sample", freeSample);
+        if (freeTry) res.set("X-Agent402-Free-Try", freeTry);
       }
 
       res.on("finish", () => {
@@ -736,6 +748,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
           productId: product?.id,
           price: product?.price,
           freeSample,
+          freeTry,
           trafficClass: classifyX402Traffic({ hasPaymentProof, inputPresent, catalogSweep, integrationProbe, intentConfirmed: sweepObservation.intentConfirmed }),
           distinctPaths: sweepObservation.newlyDetected ? sweepObservation.distinctPaths : undefined,
         }));
