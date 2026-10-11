@@ -16,11 +16,15 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
         },
         Link: {
           required: true,
-          description: "Official x402 buyer instructions using rel=help, plus an optional free preview route using rel=preview when a sample exists.",
+          description: "Official x402 buyer instructions using rel=help, plus optional free routes using rel=preview for a fixed sample and rel=alternate for a constrained caller-data try.",
           schema: { type: "string" },
         },
         "X-Agent402-Free-Sample": {
           description: "Optional path to a free response-shape sample.",
+          schema: { type: "string" },
+        },
+        "X-Agent402-Free-Try": {
+          description: "Optional path to a constrained free evaluation of caller-supplied data.",
           schema: { type: "string" },
         },
         "X-Agent402-Product": {
