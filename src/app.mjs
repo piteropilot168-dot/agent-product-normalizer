@@ -1312,6 +1312,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   });
   app.post("/api/v1/no-progress-gate/try", (req, res, next) => {
     try {
+      const startedAt = Date.now();
       const body = req.body;
       if (!body || typeof body !== "object" || Array.isArray(body)) throw new InputError("body must be a JSON object");
       const keys = Object.keys(body);
@@ -1325,10 +1326,25 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
         if (unsupported) throw new InputError(`history[${index}].${unsupported} is not supported by the free try`);
       });
       const resource = `${req.protocol}://${req.get("host")}/api/v1/no-progress-gate`;
+      const result = noProgressGate({ history: body.history });
+      if (process.env.NODE_ENV !== "test") {
+        console.info(JSON.stringify({
+          event: "agent402_free_try",
+          method: req.method,
+          path: req.path,
+          status: 200,
+          durationMs: Date.now() - startedAt,
+          callerClass: classifyCaller(req.get("user-agent")),
+          productId: "no-progress-gate",
+          eventCount: body.history.length,
+          decision: result.decision,
+          next: "/api/v1/no-progress-gate",
+        }));
+      }
       res.set("cache-control", "no-store").json({
         free_try: true,
         limits: { min_events: 2, max_events: 3, max_request_bytes: 12_000, thresholds: "defaults" },
-        result: noProgressGate({ history: body.history }),
+        result,
         next: { method: "POST", resource, content_type: "application/json", payment: "x402", price: config.prices.noProgressGate },
       });
     } catch (error) { next(error); }
