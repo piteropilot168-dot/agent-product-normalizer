@@ -91,12 +91,13 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
     const sample = freeSamplesByPaidPath.get(req.path);
     const freeTry = freeTriesByPaidPath.get(req.path);
     const links = [];
+    const absoluteUrl = (path) => `${req.protocol}://${req.get("host")}${path}`;
     if (sample) {
-      links.push(`<${sample}>; rel="preview"; type="application/json"`);
+      links.push(`<${absoluteUrl(sample)}>; rel="preview"; type="application/json"`);
       res.set("X-Agent402-Free-Sample", sample);
     }
     if (freeTry) {
-      links.push(`<${freeTry}>; rel="alternate"; type="application/json"; title="Free constrained try"`);
+      links.push(`<${absoluteUrl(freeTry)}>; rel="alternate"; type="application/json"; title="Free constrained try"`);
       res.set("X-Agent402-Free-Try", freeTry);
     }
     if (links.length) res.set("Link", links.join(", "));
