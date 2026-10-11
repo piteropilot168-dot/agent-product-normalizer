@@ -39,6 +39,13 @@ test("No-Progress Gate publishes paid, fixed-sample and constrained free-try con
   assert.equal(freeTry.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/FreeNoProgressGateTry");
   assert.equal(freeTry.requestBody.content["application/json"].schema.properties.history.maxItems, 3);
   assert.equal(freeTry.requestBody.content["application/json"].schema.additionalProperties, false);
+  assert.equal(document.components.schemas.FreeNoProgressGateTry.properties.next.$ref, "#/components/schemas/NoProgressPaidReplay");
+  const paidReplay = document.components.schemas.NoProgressPaidReplay;
+  assert.equal(paidReplay.additionalProperties, false);
+  assert.equal(paidReplay.properties.reuse_request_body.const, true);
+  assert.equal(paidReplay.properties.payment_flow.properties.initial_status.const, 402);
+  assert.equal(paidReplay.properties.payment_flow.properties.requirements_header.const, "Payment-Required");
+  assert.equal(paidReplay.properties.payment_flow.properties.proof_header.const, "PAYMENT-SIGNATURE");
   assert.deepEqual(document.components.schemas.NoProgressGateResult.properties.decision.enum, ["CONTINUE", "REFRAME", "STOP_RETRYING", "ASK_HUMAN"]);
   assert.equal(document.components.schemas.NoProgressTrace.properties.last_call_fingerprint.pattern, "^[0-9a-f]{16}$");
 });
