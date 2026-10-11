@@ -49,6 +49,15 @@ test("hash API returns deterministic output and rejects oversized UTF-8 input", 
   assert.equal(callValueBody.free_sample, true);
   assert.equal(callValueBody.decision, "EXECUTE");
   assert.equal(callValueBody.next.path, "/api/v1/call-value-gate");
+
+  const noProgress = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/no-progress-gate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ history: [{ tool: "a", result: 1 }, { tool: "a", result: 1 }] }),
+  });
+  assert.equal(noProgress.status, 200);
+  assert.equal(noProgress.headers.get("x-agent402-free-try"), "/api/v1/no-progress-gate/try");
+  assert.match(noProgress.headers.get("link"), /<\/api\/v1\/no-progress-gate\/try>; rel="alternate"/);
 });
 
 test("public discovery and free samples do not initialize the payment middleware", async (t) => {
