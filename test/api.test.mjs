@@ -41,7 +41,7 @@ test("hash API returns deterministic output and rejects oversized UTF-8 input", 
   const taskGate = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/task-gate?task=check`);
   assert.equal(taskGate.status, 200);
   assert.equal(taskGate.headers.get("x-agent402-free-sample"), "/api/v1/task-gate/sample");
-  assert.match(taskGate.headers.get("link"), /<\/api\/v1\/task-gate\/sample>; rel="preview"/);
+  assert.match(taskGate.headers.get("link"), /<http:\/\/127\.0\.0\.1:\d+\/api\/v1\/task-gate\/sample>; rel="preview"/);
 
   const callValue = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/call-value-gate/sample`);
   assert.equal(callValue.status, 200);
@@ -72,7 +72,7 @@ test("hash API returns deterministic output and rejects oversized UTF-8 input", 
   });
   assert.equal(noProgress.status, 200);
   assert.equal(noProgress.headers.get("x-agent402-free-try"), "/api/v1/no-progress-gate/try");
-  assert.match(noProgress.headers.get("link"), /<\/api\/v1\/no-progress-gate\/try>; rel="alternate"/);
+  assert.match(noProgress.headers.get("link"), /<http:\/\/127\.0\.0\.1:\d+\/api\/v1\/no-progress-gate\/try>; rel="alternate"/);
 });
 
 test("public discovery and free samples do not initialize the payment middleware", async (t) => {
