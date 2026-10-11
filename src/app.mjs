@@ -733,6 +733,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
           : { isSweep: false, newlyDetected: false, distinctPaths: 0, pairedInputProbe: false, intentConfirmed: false };
         const catalogSweep = sweepObservation.isSweep;
         const integrationProbe = sweepObservation.pairedInputProbe;
+        const callerClass = classifyCaller(req.get("user-agent"));
 
         // A catalog sweep is useful as one summary signal, not dozens of per-route logs.
         if (catalogSweep && !sweepObservation.newlyDetected) return;
@@ -743,13 +744,13 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
           path,
           status: res.statusCode,
           durationMs: Date.now() - startedAt,
-          callerClass: classifyCaller(req.get("user-agent")),
+          callerClass,
           inputPresent,
           productId: product?.id,
           price: product?.price,
           freeSample,
           freeTry,
-          trafficClass: classifyX402Traffic({ hasPaymentProof, inputPresent, catalogSweep, integrationProbe, intentConfirmed: sweepObservation.intentConfirmed }),
+          trafficClass: classifyX402Traffic({ hasPaymentProof, callerClass, inputPresent, catalogSweep, integrationProbe, intentConfirmed: sweepObservation.intentConfirmed }),
           distinctPaths: sweepObservation.newlyDetected ? sweepObservation.distinctPaths : undefined,
         }));
       });
