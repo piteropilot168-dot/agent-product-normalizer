@@ -68,6 +68,33 @@ test("public discovery and free samples do not initialize the payment middleware
   for (const path of ["/openapi.json", "/llms.txt", "/sitemap.xml", "/robots.txt", "/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/call-value-gate/sample", "/api/v1/no-progress-gate/sample"]) {
     assert.equal((await fetch(`${base}${path}`)).status, 200);
   }
+  const freeTry = await fetch(`${base}/api/v1/no-progress-gate/try`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ history: [
+      { tool: "search", args: { q: "agent loop" }, result: { hits: 0 } },
+      { tool: "search", args: { q: "agent loop" }, result: { hits: 0 } },
+    ] }),
+  });
+  assert.equal(freeTry.status, 200);
+  const freeTryBody = await freeTry.json();
+  assert.equal(freeTryBody.free_try, true);
+  assert.equal(freeTryBody.result.trace.event_count, 2);
+  assert.equal(freeTryBody.next.payment, "x402");
+  assert.equal(paymentInitializations, 0);
+
+  const tooManyEvents = await fetch(`${base}/api/v1/no-progress-gate/try`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ history: Array.from({ length: 4 }, (_, index) => ({ tool: "search", result: index })) }),
+  });
+  assert.equal(tooManyEvents.status, 400);
+  const customThreshold = await fetch(`${base}/api/v1/no-progress-gate/try`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ history: [{ tool: "a" }, { tool: "a" }], exact_repeat_limit: 2 }),
+  });
+  assert.equal(customThreshold.status, 400);
   assert.equal(paymentInitializations, 0);
 
   const paidLike = await fetch(`${base}/api/v1/hash?text=hello`);

@@ -116,7 +116,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       { id: "make-search-query", methods: ["GET", "POST"], path: "/api/v1/make-search-query", price: config.prices.makeSearchQuery },
       { id: "missing-fields", methods: ["GET", "POST"], path: "/api/v1/missing-fields", price: config.prices.missingFields },
       { id: "retry-decision", methods: ["GET", "POST"], path: "/api/v1/retry-decision", price: config.prices.retryDecision },
-      { id: "no-progress-gate", name: "Agent No-Progress Gate", description: "Detect repeated tool calls, unchanged results, repeated failures and exhausted budgets before an autonomous agent wastes another call.", tags: ["agents", "loop-breaker", "tool-calls", "cost-control", "progress", "deterministic"], methods: ["POST"], path: "/api/v1/no-progress-gate", price: config.prices.noProgressGate, free_sample: "/api/v1/no-progress-gate/sample" },
+      { id: "no-progress-gate", name: "Agent No-Progress Gate", description: "Detect repeated tool calls, unchanged results, repeated failures and exhausted budgets before an autonomous agent wastes another call.", tags: ["agents", "loop-breaker", "tool-calls", "cost-control", "progress", "deterministic"], methods: ["POST"], path: "/api/v1/no-progress-gate", price: config.prices.noProgressGate, free_sample: "/api/v1/no-progress-gate/sample", free_try: "/api/v1/no-progress-gate/try" },
       { id: "prompt-injection-scan", methods: ["GET", "POST"], path: "/api/v1/prompt-injection-scan", price: config.prices.promptInjectionScan },
       { id: "redact-secrets", methods: ["GET", "POST"], path: "/api/v1/redact-secrets", price: config.prices.redactSecrets },
       { id: "handoff-diff", methods: ["GET", "POST"], path: "/api/v1/handoff-diff", price: config.prices.handoffDiff },
@@ -319,7 +319,8 @@ Agent workflow utilities:
 - GET/POST /api/v1/missing-fields — ${config.prices.missingFields} — check whether required tool-call inputs are present.
 - GET/POST /api/v1/retry-decision — ${config.prices.retryDecision} — classify tool/API failures and decide whether/how to retry.
 - POST /api/v1/no-progress-gate — ${config.prices.noProgressGate} — fingerprint a rolling tool trace and return CONTINUE, REFRAME, STOP_RETRYING or ASK_HUMAN before another wasteful call.
-- Free sample: GET /api/v1/no-progress-gate/sample returns a fixed repeated-search trace without payment, so callers can inspect the decision schema before integrating.
+- Free sample: GET /api/v1/no-progress-gate/sample returns a fixed repeated-search trace without payment.
+- Free try: POST /api/v1/no-progress-gate/try evaluates 2-3 caller-supplied events (maximum 12 KB, default thresholds only) before using the full paid gate.
 - GET/POST /api/v1/prompt-injection-scan — ${config.prices.promptInjectionScan} — scan untrusted text for common prompt-injection patterns.
 - GET/POST /api/v1/redact-secrets — ${config.prices.redactSecrets} — redact common credential/token patterns before handoff or logging.
 - GET/POST /api/v1/handoff-diff — ${config.prices.handoffDiff} — report what changed between two agent states.
@@ -398,6 +399,12 @@ Notes for agent callers:
         resource: `${baseUrl}/api/v1/no-progress-gate/sample`,
         payment_required: false,
         description: "Fixed repeated-call trace to inspect No-Progress Gate output before using the paid endpoint.",
+      }, {
+        id: "no-progress-gate-try",
+        method: "POST",
+        resource: `${baseUrl}/api/v1/no-progress-gate/try`,
+        payment_required: false,
+        description: "Evaluate a caller-supplied 2-3 event trace with default thresholds before using the full paid No-Progress Gate.",
       }],
     });
   };
@@ -1027,6 +1034,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       "/api/v1/task-gate/sample",
       "/api/v1/call-value-gate/sample",
       "/api/v1/no-progress-gate/sample",
+      "/api/v1/no-progress-gate/try",
     ]);
     app.use((req, res, next) => {
       if (freeSamplePaths.has(req.path)) return next();
@@ -1288,6 +1296,29 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
         },
       },
     });
+  });
+  app.post("/api/v1/no-progress-gate/try", (req, res, next) => {
+    try {
+      const body = req.body;
+      if (!body || typeof body !== "object" || Array.isArray(body)) throw new InputError("body must be a JSON object");
+      const keys = Object.keys(body);
+      if (keys.length !== 1 || keys[0] !== "history") throw new InputError("free try accepts only history; use the paid endpoint for custom thresholds and budgets");
+      if (!Array.isArray(body.history) || body.history.length < 2 || body.history.length > 3) throw new InputError("free try history must contain 2 to 3 tool-call events");
+      if (Buffer.byteLength(JSON.stringify(body), "utf8") > 12_000) throw new InputError("free try request must not exceed 12000 UTF-8 bytes");
+      const allowedEventKeys = new Set(["tool", "name", "args", "input", "result", "output", "error", "status", "elapsed_ms", "cost_usd"]);
+      body.history.forEach((event, index) => {
+        if (!event || typeof event !== "object" || Array.isArray(event)) throw new InputError(`history[${index}] must be an object`);
+        const unsupported = Object.keys(event).find((key) => !allowedEventKeys.has(key));
+        if (unsupported) throw new InputError(`history[${index}].${unsupported} is not supported by the free try`);
+      });
+      const resource = `${req.protocol}://${req.get("host")}/api/v1/no-progress-gate`;
+      res.set("cache-control", "no-store").json({
+        free_try: true,
+        limits: { min_events: 2, max_events: 3, max_request_bytes: 12_000, thresholds: "defaults" },
+        result: noProgressGate({ history: body.history }),
+        next: { method: "POST", resource, content_type: "application/json", payment: "x402", price: config.prices.noProgressGate },
+      });
+    } catch (error) { next(error); }
   });
   const noProgressHandler=(req,res,next)=>{ try { res.set("cache-control","no-store").json(noProgressGate(req.body)); } catch(error){next(error);} };
   app.post("/api/v1/no-progress-gate", noProgressHandler);

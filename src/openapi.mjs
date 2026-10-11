@@ -404,6 +404,27 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           },
           additionalProperties: false,
         },
+        FreeNoProgressGateTry: {
+          type: "object",
+          required: ["free_try", "limits", "result", "next"],
+          properties: {
+            free_try: { type: "boolean", const: true },
+            limits: {
+              type: "object",
+              required: ["min_events", "max_events", "max_request_bytes", "thresholds"],
+              properties: {
+                min_events: { type: "integer", const: 2 },
+                max_events: { type: "integer", const: 3 },
+                max_request_bytes: { type: "integer", const: 12000 },
+                thresholds: { type: "string", const: "defaults" },
+              },
+              additionalProperties: false,
+            },
+            result: { $ref: "#/components/schemas/NoProgressGateResult" },
+            next: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
+        },
       },
     },
     paths: {
@@ -590,6 +611,23 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
             }
           }
         }
+      },
+      "/api/v1/no-progress-gate/try": {
+        post: {
+          operationId: "tryNoProgressGate",
+          summary: "Try No-Progress Gate free with a constrained caller-supplied trace",
+          description: "Evaluates 2-3 events with default thresholds. The JSON request is limited to 12000 UTF-8 bytes; use the paid endpoint for longer histories, custom thresholds, budgets or human escalation.",
+          requestBody: { required: true, content: { "application/json": { schema: {
+            type: "object", required: ["history"],
+            properties: {
+              history: { type: "array", minItems: 2, maxItems: 3, items: { type: "object", properties: { tool: { type: "string", minLength: 1, maxLength: 200 }, name: { type: "string", minLength: 1, maxLength: 200 }, args: {}, input: {}, result: {}, output: {}, error: {}, status: { type: "string", enum: ["success", "ok", "error", "failed", "failure"] }, elapsed_ms: { type: "number", minimum: 0 }, cost_usd: { type: "number", minimum: 0 } }, additionalProperties: false } },
+            }, additionalProperties: false,
+          } } } },
+          responses: {
+            "200": { description: "Free constrained evaluation; no payment required.", content: { "application/json": { schema: { $ref: "#/components/schemas/FreeNoProgressGateTry" } } } },
+            "400": { description: "Invalid or out-of-bounds free-try request." },
+          },
+        },
       },
       "/api/v1/no-progress-gate": {
         post: {
