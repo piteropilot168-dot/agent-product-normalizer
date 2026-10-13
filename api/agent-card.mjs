@@ -8,10 +8,48 @@ export default function handler(req, res) {
   const baseUrl = `${proto}://${host}`;
 
   const paidSkills = [
+    ...(config.transcriptProviderApiKey ? [
+      {
+        id: "video-transcript",
+        name: "YouTube Transcript Fetch",
+        description: "Fetch timestamped YouTube transcript text for an agent that otherwise would need a separate transcript provider, browser workflow or manual video review. Best when the downstream agent needs the source text once and will do its own reasoning.",
+        endpoint: `${baseUrl}/api/v1/video-transcript`,
+        price: config.prices.videoTranscript,
+        tags: ["youtube", "video", "transcript", "captions", "timestamped", "external-data", "agent-context"],
+        examples: ["Fetch the transcript and timestamps for this YouTube URL so I can answer questions without watching the video."]
+      },
+      {
+        id: "video-analyze",
+        name: "YouTube-to-Agent Context Pack",
+        description: "Fetch a YouTube transcript once and return a compact agent-ready pack with brief, timestamped key points, chapters, candidate claims, action items and optional evidence Q&A. Use it when avoiding repeated transcript fetches and long-context processing is worth more than the call price.",
+        endpoint: `${baseUrl}/api/v1/video-analyze`,
+        price: config.prices.videoAnalyze,
+        tags: ["youtube", "video", "transcript", "context-compression", "key-points", "chapters", "claims", "qa", "external-data"],
+        examples: ["Turn this 60-minute YouTube video into the compact evidence pack my agent needs to answer one question and continue the task."]
+      }
+    ] : []),
+    {
+      id: "extract-offer",
+      name: "Live Product Offer Extractor",
+      description: "Fetch a public product page and return compact price, currency, availability and seller facts so an agent does not need to spend a browser/model pass interpreting the page itself.",
+      endpoint: `${baseUrl}/api/v1/extract-offer`,
+      price: config.prices.extractOffer,
+      tags: ["commerce", "shopping", "product-data", "price", "availability", "seller", "live-web", "external-data"],
+      examples: ["Extract the current price, currency, availability and seller from this product URL."]
+    },
+    {
+      id: "normalize",
+      name: "Live Product Page Normalizer",
+      description: "Fetch a public product page and normalize its commerce data into stable agent-ready JSON, reducing bespoke scraping and page-specific parsing work in shopping workflows.",
+      endpoint: `${baseUrl}/api/v1/normalize`,
+      price: config.prices.normalize,
+      tags: ["commerce", "shopping", "product-data", "normalization", "live-web", "structured-data", "external-data"],
+      examples: ["Normalize this merchant product page into a stable schema for downstream comparison."]
+    },
     {
       id: "call-value-gate",
       name: "Agent Call Value Gate",
-      description: "Decide whether the next model, tool or human call is worth its expected value, latency, failure risk and remaining budget before spending more.",
+      description: "Decide whether the next model, tool or human call is worth its expected value, latency, failure risk and remaining budget before spending more. Use only when this decision is cheaper than the call it can prevent.",
       endpoint: `${baseUrl}/api/v1/call-value-gate`,
       price: config.prices.callValueGate,
       tags: ["agents", "expected-value", "budget", "tool-call", "model-routing", "cost-control", "roi"],
@@ -37,16 +75,6 @@ export default function handler(req, res) {
       examples: ["Can this autonomous action proceed safely with the information currently available?"]
     },
     {
-      id: "hash",
-      name: "Deterministic Text Hash",
-      description: "Generate deterministic SHA-256 or SHA-512 digests for cache keys, checksums, deduplication and content fingerprints. SHA-1 and MD5 are legacy-only.",
-      endpoint: `${baseUrl}/api/v1/hash`,
-      price: config.prices.hash,
-      freeSample: `${baseUrl}/api/v1/hash/sample`,
-      tags: ["hash", "sha256", "sha512", "checksum", "cache", "deduplication", "deterministic"],
-      examples: ["Create a SHA-256 fingerprint for this payload."]
-    },
-    {
       id: "prompt-injection-scan",
       name: "Prompt Injection Scan",
       description: "Scan untrusted retrieved text for common prompt-injection signals before an agent places it into working context.",
@@ -67,7 +95,7 @@ export default function handler(req, res) {
     {
       id: "compress-context",
       name: "Agent Context Compressor",
-      description: "Compress long operational notes into compact state for downstream agents and handoffs.",
+      description: "Compress long operational notes into compact state for downstream agents and handoffs. Use when the saved downstream context/model cost is larger than this network call.",
       endpoint: `${baseUrl}/api/v1/compress-context`,
       price: config.prices.compressContext,
       tags: ["agents", "context", "compression", "handoff", "tokens"],
@@ -94,7 +122,7 @@ export default function handler(req, res) {
     {
       id: "no-progress-gate",
       name: "Agent No-Progress Gate",
-      description: "Fingerprint a rolling tool trace and return CONTINUE, REFRAME, STOP_RETRYING or ASK_HUMAN when repeated calls, unchanged results, failures or budgets show no progress.",
+      description: "Fingerprint a rolling tool trace and return CONTINUE, REFRAME, STOP_RETRYING or ASK_HUMAN when repeated calls, unchanged results, failures or budgets show no progress. Use when one avoided tool/model call is worth more than this gate.",
       endpoint: `${baseUrl}/api/v1/no-progress-gate`,
       price: config.prices.noProgressGate,
       freeSample: `${baseUrl}/api/v1/no-progress-gate/sample`,
@@ -109,6 +137,16 @@ export default function handler(req, res) {
       price: config.prices.missingFields,
       tags: ["agents", "tool-call", "validation", "preflight", "schema"],
       examples: ["Check this payload for missing required tool parameters before execution."]
+    },
+    {
+      id: "hash",
+      name: "Deterministic Text Hash",
+      description: "Generate deterministic SHA-256 or SHA-512 digests for cache keys, checksums, deduplication and content fingerprints. Agents with local crypto should hash locally; this paid route is mainly for runtimes without that capability or those needing one stable remote interface.",
+      endpoint: `${baseUrl}/api/v1/hash`,
+      price: config.prices.hash,
+      freeSample: `${baseUrl}/api/v1/hash/sample`,
+      tags: ["hash", "sha256", "sha512", "checksum", "cache", "deduplication", "deterministic"],
+      examples: ["Create a SHA-256 fingerprint for this payload when the agent runtime has no local crypto primitive."]
     }
   ].map((skill) => ({
     ...skill,
@@ -126,8 +164,8 @@ export default function handler(req, res) {
   res.setHeader("cache-control", "public, max-age=300");
   res.status(200).json({
     name: "Agent Product Normalizer",
-    description: "Low-cost deterministic x402 utilities that reduce agent tool calls, context waste, retries, unsafe actions and unnecessary model spend.",
-    version: "0.9.6",
+    description: "Pay-per-call capabilities for agents, led by external-data tasks that are costly to reproduce locally: YouTube transcript/context extraction and live commerce parsing, plus low-cost workflow gates when they can avoid a more expensive call.",
+    version: "0.9.7",
     protocolVersion: "1.0",
     url: baseUrl,
     provider: {
@@ -164,6 +202,7 @@ export default function handler(req, res) {
       openapi: `${baseUrl}/openapi.json`,
       llms: `${baseUrl}/llms.txt`
     },
+    buyerRule: "Prefer skills that provide external data or avoid a downstream call costing materially more than this skill. Do not buy a remote deterministic utility when the same operation is already cheap and available locally.",
     payment: {
       protocol: "x402",
       version: 2,
