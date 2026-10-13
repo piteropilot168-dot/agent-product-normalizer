@@ -3,6 +3,8 @@
   "rewrites": [
     { "source": "/.well-known/agent-card.json", "destination": "/api/agent-card" },
     { "source": "/.well-known/agent.json", "destination": "/api/agent-card" },
+    { "source": "/.well-known/ai-world-state.json", "destination": "/api/ai-world-state" },
+    { "source": "/.well-known/ai-world-delta.json", "destination": "/api/ai-world-delta" },
     { "source": "/(.*)", "destination": "/api" }
   ]
 }
