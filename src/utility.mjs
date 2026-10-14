@@ -16,6 +16,12 @@ export function classifyCaller(userAgent = "") {
   return "unknown";
 }
 
+export function classifyFreeSampleTelemetry(method = "GET") {
+  return String(method).toUpperCase() === "HEAD"
+    ? { event: "free_sample_probe", engagement: false }
+    : { event: "free_sample_view", engagement: true };
+}
+
 export function classifyX402Traffic({ hasPaymentProof = false, callerClass = "unknown", inputPresent = false, catalogSweep = false, integrationProbe = false, intentConfirmed = false } = {}) {
   if (hasPaymentProof) return "payment_attempt";
   if (callerClass === "crawler") return "crawler_probe";
