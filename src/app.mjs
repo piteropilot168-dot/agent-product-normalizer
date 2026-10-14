@@ -80,6 +80,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
     ["/api/v1/hash", "/api/v1/hash/sample"],
     ["/api/v1/task-gate", "/api/v1/task-gate/sample"],
     ["/api/v1/call-value-gate", "/api/v1/call-value-gate/sample"],
+    ["/api/v1/validate", "/api/v1/validate/sample"],
     ["/api/v1/missing-fields", "/api/v1/missing-fields/sample"],
     ["/api/v1/prompt-injection-scan", "/api/v1/prompt-injection-scan/sample"],
     ["/api/v1/no-progress-gate", "/api/v1/no-progress-gate/sample"],
@@ -275,6 +276,7 @@ curl -sS ${baseUrl}/api/v1/no-progress-gate/sample</code></pre><p>To inspect pay
     "/api/v1/hash/sample",
     "/api/v1/task-gate/sample",
     "/api/v1/call-value-gate/sample",
+    "/api/v1/validate/sample",
     "/api/v1/missing-fields/sample",
     "/api/v1/prompt-injection-scan/sample",
     "/api/v1/no-progress-gate/sample",
@@ -1119,6 +1121,29 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
   };
   app.get("/api/v1/extract-offer", extractHandler);
   app.post("/api/v1/extract-offer", extractHandler);
+
+  app.get("/api/v1/validate/sample", (_req, res) => {
+    res.set("cache-control", "public, max-age=3600").json({
+      free_sample: true,
+      url: "https://example.invalid/demo-product",
+      score: 100,
+      grade: "A",
+      usable_for_agents: true,
+      issues: [],
+      normalized_quality: {
+        confidence: 0.98,
+        sources: ["json-ld", "meta"],
+        warnings: [],
+      },
+      next: {
+        method: "POST",
+        path: "/api/v1/validate",
+        payment: "x402",
+        price: config.prices.validate,
+        input: { url: "https://merchant.example/product" },
+      },
+    });
+  });
 
   const validateHandler = async (req, res, next) => {
     try {
