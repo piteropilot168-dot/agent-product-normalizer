@@ -50,6 +50,13 @@ test("hash API returns deterministic output and rejects oversized UTF-8 input", 
   assert.equal(callValueBody.decision, "EXECUTE");
   assert.equal(callValueBody.next.path, "/api/v1/call-value-gate");
 
+  const compressSample = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/compress-context/sample`);
+  assert.equal(compressSample.status, 200);
+  const compressSampleBody = await compressSample.json();
+  assert.equal(compressSampleBody.free_sample, true);
+  assert.ok(compressSampleBody.stats.output_chars < compressSampleBody.stats.input_chars);
+  assert.equal(compressSampleBody.next.path, "/api/v1/compress-context");
+
   const missingSample = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/missing-fields/sample`);
   assert.equal(missingSample.status, 200);
   const missingSampleBody = await missingSample.json();
@@ -89,7 +96,7 @@ test("public discovery and free samples do not initialize the payment middleware
   t.after(() => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
   const base = `http://127.0.0.1:${server.address().port}`;
 
-  const samplePaths = ["/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/call-value-gate/sample", "/api/v1/validate/sample", "/api/v1/missing-fields/sample", "/api/v1/prompt-injection-scan/sample", "/api/v1/no-progress-gate/sample"];
+  const samplePaths = ["/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/call-value-gate/sample", "/api/v1/compress-context/sample", "/api/v1/validate/sample", "/api/v1/missing-fields/sample", "/api/v1/prompt-injection-scan/sample", "/api/v1/no-progress-gate/sample"];
   for (const path of ["/openapi.json", "/llms.txt", "/sitemap.xml", "/robots.txt", ...samplePaths]) {
     assert.equal((await fetch(`${base}${path}`)).status, 200);
   }
