@@ -109,11 +109,12 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
   app.use((req, res, next) => {
     const paidPath = paidPathByFreeSample.get(req.path);
     if (!paidPath) return next();
+    const requestMethod = req.method;
     const startedAt = Date.now();
     res.on("finish", () => {
       console.info(JSON.stringify({
         event: "free_sample_view",
-        method: req.method,
+        method: requestMethod,
         path: req.path,
         status: res.statusCode,
         durationMs: Date.now() - startedAt,
@@ -122,6 +123,13 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
         paidPath,
       }));
     });
+    next();
+  });
+
+  // Some machine buyers POST to discovered preview URLs. Reuse the same
+  // deterministic, cacheable sample handlers instead of returning a false 404.
+  app.post([...paidPathByFreeSample.keys()], (req, _res, next) => {
+    req.method = "GET";
     next();
   });
 
@@ -1095,6 +1103,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       "/api/v1/hash/sample",
       "/api/v1/task-gate/sample",
       "/api/v1/call-value-gate/sample",
+      "/api/v1/validate/sample",
       "/api/v1/missing-fields/sample",
       "/api/v1/prompt-injection-scan/sample",
       "/api/v1/no-progress-gate/sample",

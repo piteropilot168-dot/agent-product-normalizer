@@ -89,8 +89,18 @@ test("public discovery and free samples do not initialize the payment middleware
   t.after(() => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
   const base = `http://127.0.0.1:${server.address().port}`;
 
-  for (const path of ["/openapi.json", "/llms.txt", "/sitemap.xml", "/robots.txt", "/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/call-value-gate/sample", "/api/v1/missing-fields/sample", "/api/v1/prompt-injection-scan/sample", "/api/v1/no-progress-gate/sample"]) {
+  const samplePaths = ["/api/v1/hash/sample", "/api/v1/task-gate/sample", "/api/v1/call-value-gate/sample", "/api/v1/validate/sample", "/api/v1/missing-fields/sample", "/api/v1/prompt-injection-scan/sample", "/api/v1/no-progress-gate/sample"];
+  for (const path of ["/openapi.json", "/llms.txt", "/sitemap.xml", "/robots.txt", ...samplePaths]) {
     assert.equal((await fetch(`${base}${path}`)).status, 200);
+  }
+  for (const path of samplePaths) {
+    const response = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(response.status, 200, `POST ${path}`);
+    assert.equal((await response.json()).free_sample, true);
   }
   const freeTry = await fetch(`${base}/api/v1/no-progress-gate/try`, {
     method: "POST",
