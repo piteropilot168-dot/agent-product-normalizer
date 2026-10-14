@@ -84,8 +84,10 @@ test("hash API returns deterministic output and rejects oversized UTF-8 input", 
 
 test("public discovery and free samples do not initialize the payment middleware", async (t) => {
   let paymentInitializations = 0;
+  const sampleTelemetry = [];
   const app = createApp({
     payments: true,
+    sampleTelemetryLogger: (line) => sampleTelemetry.push(JSON.parse(line)),
     paymentMiddlewareFactory: () => {
       paymentInitializations += 1;
       return (_req, _res, next) => next();
@@ -127,6 +129,22 @@ test("public discovery and free samples do not initialize the payment middleware
   assert.equal(freeTryBody.next.payment_flow.requirements_header, "Payment-Required");
   assert.equal(freeTryBody.next.payment_flow.proof_header, "PAYMENT-SIGNATURE");
   assert.equal(paymentInitializations, 0);
+
+  const syntheticSample = await fetch(`${base}/api/v1/hash/sample`, {
+    headers: { "x-agent402-probe": "production-check" },
+  });
+  assert.equal(syntheticSample.status, 200);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(sampleTelemetry.at(-1).trafficClass, "synthetic_probe");
+  assert.equal(sampleTelemetry.at(-1).engagement, false);
+
+  const buyerSample = await fetch(`${base}/api/v1/hash/sample`, {
+    headers: { "user-agent": "Agent402 buyer/1.0" },
+  });
+  assert.equal(buyerSample.status, 200);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(sampleTelemetry.at(-1).trafficClass, "sample_engagement");
+  assert.equal(sampleTelemetry.at(-1).engagement, true);
 
   const tooManyEvents = await fetch(`${base}/api/v1/no-progress-gate/try`, {
     method: "POST",
