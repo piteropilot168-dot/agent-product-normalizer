@@ -12,17 +12,33 @@ test("caller classification separates crawlers, agents, browsers and unknown cli
 });
 
 test("HEAD availability checks do not count as free sample engagement", () => {
-  assert.deepEqual(classifyFreeSampleTelemetry("HEAD"), {
+  assert.deepEqual(classifyFreeSampleTelemetry({ method: "HEAD" }), {
     event: "free_sample_probe",
     engagement: false,
+    trafficClass: "availability_probe",
   });
-  assert.deepEqual(classifyFreeSampleTelemetry("GET"), {
+  assert.deepEqual(classifyFreeSampleTelemetry({ method: "GET" }), {
     event: "free_sample_view",
     engagement: true,
+    trafficClass: "sample_engagement",
   });
-  assert.deepEqual(classifyFreeSampleTelemetry("POST"), {
-    event: "free_sample_view",
-    engagement: true,
+});
+
+test("crawler, catalog and paired integration sample probes do not count as engagement", () => {
+  assert.deepEqual(classifyFreeSampleTelemetry({ method: "GET", callerClass: "crawler" }), {
+    event: "free_sample_probe",
+    engagement: false,
+    trafficClass: "crawler_probe",
+  });
+  assert.deepEqual(classifyFreeSampleTelemetry({ method: "GET", catalogSweep: true }), {
+    event: "free_sample_catalog_sweep_detected",
+    engagement: false,
+    trafficClass: "catalog_sweep",
+  });
+  assert.deepEqual(classifyFreeSampleTelemetry({ method: "POST", integrationProbe: true }), {
+    event: "free_sample_probe",
+    engagement: false,
+    trafficClass: "integration_probe",
   });
 });
 
