@@ -165,7 +165,7 @@ export default function handler(req, res) {
   res.status(200).json({
     name: "Agent Product Normalizer",
     description: "Pay-per-call capabilities for agents, led by external-data tasks that are costly to reproduce locally: YouTube transcript/context extraction and live commerce parsing, plus low-cost workflow gates when they can avoid a more expensive call.",
-    version: "0.9.7",
+    version: "0.9.8",
     protocolVersion: "1.0",
     url: baseUrl,
     provider: {
@@ -200,7 +200,8 @@ export default function handler(req, res) {
       catalog: `${baseUrl}/catalog`,
       x402: `${baseUrl}/.well-known/x402`,
       openapi: `${baseUrl}/openapi.json`,
-      llms: `${baseUrl}/llms.txt`
+      llms: `${baseUrl}/llms.txt`,
+      answerBase: `${baseUrl}/.well-known/answer-base.json`
     },
     buyerRule: "Prefer skills that provide external data or avoid a downstream call costing materially more than this skill. Do not buy a remote deterministic utility when the same operation is already cheap and available locally.",
     payment: {

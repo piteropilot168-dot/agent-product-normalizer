@@ -219,6 +219,7 @@ Decode the returned base64 \`Payment-Required\` value or pass the response to an
 - [x402 manifest](${baseUrl}/.well-known/x402)
 - [Agent card](${baseUrl}/.well-known/agent-card.json)
 - [Agent instructions](${baseUrl}/llms.txt)
+- [Answer Base](${baseUrl}/.well-known/answer-base.json)
 - [JSON catalog](${baseUrl}/catalog)
 
 Paid calls use USDC on Base through x402. Prices and request schemas are published in the OpenAPI document and x402 manifest. Responses are deterministic where possible, and payment proof is verified by the configured facilitator before a paid handler runs.
@@ -246,7 +247,7 @@ Paid calls use USDC on Base through x402. Prices and request schemas are publish
 <h2>Try before paying</h2><p><a href="/api/v1/hash/sample">Hash sample</a> · <a href="/api/v1/task-gate/sample">Task Gate sample</a> · <a href="/api/v1/call-value-gate/sample">Call Value sample</a> · <a href="/api/v1/missing-fields/sample">Missing Fields sample</a> · <a href="/api/v1/prompt-injection-scan/sample">Prompt Injection sample</a> · <a href="/api/v1/no-progress-gate/sample">No-Progress sample</a></p>
 <h2>CLI quickstart</h2><p>Inspect the contract and a free result without a wallet:</p><pre><code>curl -sS ${baseUrl}/openapi.json
 curl -sS ${baseUrl}/api/v1/no-progress-gate/sample</code></pre><p>To inspect payment requirements without spending, call a paid route without a payment proof. The HTTP 402 response contains the <code>Payment-Required</code> header; retry through an x402-compatible client with its <code>PAYMENT-SIGNATURE</code> proof.</p>
-<h2>Developer resources</h2><p><a href="/openapi.json">OpenAPI</a> · <a href="/.well-known/x402">x402 manifest</a> · <a href="/.well-known/agent-card.json">Agent card</a> · <a href="/llms.txt">Agent instructions</a> · <a href="/catalog">JSON catalog</a></p>
+<h2>Developer resources</h2><p><a href="/openapi.json">OpenAPI</a> · <a href="/.well-known/x402">x402 manifest</a> · <a href="/.well-known/agent-card.json">Agent card</a> · <a href="/llms.txt">Agent instructions</a> · <a href="/.well-known/answer-base.json">Answer Base</a> · <a href="/catalog">JSON catalog</a></p>
 <p>Paid calls use USDC on Base through x402. Current prices, input constraints and request schemas are machine-readable in OpenAPI and the x402 manifest.</p></main></body></html>`;
   };
 
@@ -270,6 +271,7 @@ curl -sS ${baseUrl}/api/v1/no-progress-gate/sample</code></pre><p>To inspect pay
     "/skill.md",
     "/.well-known/x402",
     "/.well-known/agent-card.json",
+    "/.well-known/answer-base.json",
     "/api/v1/hash/sample",
     "/api/v1/task-gate/sample",
     "/api/v1/call-value-gate/sample",
@@ -299,6 +301,7 @@ Pay-to: ${config.payTo}
 
 CLI quickstart (no wallet or payment):
 - curl -sS ${baseUrl}/openapi.json
+- curl -sS ${baseUrl}/.well-known/answer-base.json
 - curl -sS ${baseUrl}/api/v1/no-progress-gate/sample
 
 Inspect x402 requirements without spending:
@@ -356,6 +359,7 @@ Discovery:
 - ${baseUrl}/openapi.json
 - ${baseUrl}/.well-known/x402
 - ${baseUrl}/.well-known/agent-card.json
+- ${baseUrl}/.well-known/answer-base.json
 - ${baseUrl}/.well-known/ai-plugin.json
 - ${baseUrl}/skill.md
 
@@ -517,6 +521,7 @@ Notes for agent callers:
         openapi: `${baseUrl}/openapi.json`,
         x402: `${baseUrl}/.well-known/x402`,
         llms: `${baseUrl}/llms.txt`,
+        answerBase: `${baseUrl}/.well-known/answer-base.json`,
       },
       active: true,
     });

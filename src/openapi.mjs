@@ -122,7 +122,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
     openapi: "3.1.0",
     info: {
       title: "Agent Product Normalizer + Video Intelligence API",
-      version: "0.9.6",
+      version: "0.9.8",
       description: "Paid x402 microservices for autonomous agents: high-frequency hashing, video context extraction, workflow compression, safety helpers and commerce normalization. USDC on Base. Most services support both browser-friendly GET and agent-friendly POST; trace-heavy services may be POST-only.",
     },
     servers: [{ url: baseUrl }],
@@ -455,6 +455,19 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
       },
     },
     paths: {
+      "/.well-known/answer-base.json": {
+        get: {
+          operationId: "getAnswerBaseRegistry",
+          summary: "List reusable answer packs and their freshness metadata",
+          description: "Free machine-readable registry of demand-driven answer packs, intended savings, freshness policy, evidence requirements and paid handoffs.",
+          responses: {
+            "200": {
+              description: "Current Answer Base registry; no payment required.",
+              content: { "application/json": { schema: { type: "object", additionalProperties: true } } },
+            },
+          },
+        },
+      },
       "/api/v1/hash": {
         get: {
           operationId: "hashTextByQuery",
