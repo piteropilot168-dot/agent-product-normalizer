@@ -91,6 +91,8 @@ test("Core workflow tools publish exact response contracts for GET and POST", ()
   assert.equal(document.components.schemas.ClarifyTaskResult.properties.must_ask_user.type, "boolean");
   assert.equal(document.components.schemas.ConstraintExtractionResult.properties.detected_count.minimum, 0);
   assert.equal(document.components.schemas.ContextCompressionResult.properties.stats.$ref, "#/components/schemas/ContextCompressionStats");
+  assert.equal(document.paths["/api/v1/compress-context/sample"].get.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/FreeContextCompressionSample");
+  assert.equal(document.components.schemas.FreeContextCompressionSample.properties.next.properties.path.const, "/api/v1/compress-context");
 });
 
 test("Observed context-safety tools publish exact response contracts", () => {
