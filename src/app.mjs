@@ -75,6 +75,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
   app.disable("x-powered-by");
   app.use(express.json({ limit: "256kb" }));
   const catalogSweepDetector = createCatalogSweepDetector();
+  const sampleSweepDetector = createCatalogSweepDetector({ minDistinctPaths: 2 });
 
   const freeSamplesByPaidPath = new Map([
     ["/api/v1/hash", "/api/v1/hash/sample"],
@@ -113,17 +114,34 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
     const requestMethod = req.method;
     const startedAt = Date.now();
     res.on("finish", () => {
-      const telemetry = classifyFreeSampleTelemetry(requestMethod);
+      const callerClass = classifyCaller(req.get("user-agent"));
+      const sweepObservation = requestMethod === "HEAD"
+        ? { isSweep: false, newlyDetected: false, distinctPaths: 0, pairedInputProbe: false }
+        : sampleSweepDetector.observe({
+          callerKey: req.ip || "",
+          path: req.path,
+          method: requestMethod,
+          inputPresent: requestMethod === "POST",
+        });
+      const telemetry = classifyFreeSampleTelemetry({
+        method: requestMethod,
+        callerClass,
+        catalogSweep: sweepObservation.isSweep,
+        integrationProbe: sweepObservation.pairedInputProbe,
+      });
+      if (sweepObservation.isSweep && !sweepObservation.newlyDetected) return;
       console.info(JSON.stringify({
         event: telemetry.event,
         engagement: telemetry.engagement,
+        trafficClass: telemetry.trafficClass,
         method: requestMethod,
         path: req.path,
         status: res.statusCode,
         durationMs: Date.now() - startedAt,
-        callerClass: classifyCaller(req.get("user-agent")),
+        callerClass,
         productId: paidPath.split("/").filter(Boolean).at(-1),
         paidPath,
+        distinctPaths: sweepObservation.newlyDetected ? sweepObservation.distinctPaths : undefined,
       }));
     });
     next();
