@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyCaller, classifyX402Traffic, createCatalogSweepDetector, hashText } from "../src/utility.mjs";
+import { classifyCaller, classifyFreeSampleTelemetry, classifyX402Traffic, createCatalogSweepDetector, hashText } from "../src/utility.mjs";
 
 test("caller classification separates crawlers, agents, browsers and unknown clients", () => {
   assert.equal(classifyCaller("Googlebot/2.1"), "crawler");
@@ -9,6 +9,21 @@ test("caller classification separates crawlers, agents, browsers and unknown cli
   assert.equal(classifyCaller("Mozilla/5.0 Chrome/130"), "browser");
   assert.equal(classifyCaller("custom-client/1.0"), "unknown");
   assert.equal(classifyCaller(), "unknown");
+});
+
+test("HEAD availability checks do not count as free sample engagement", () => {
+  assert.deepEqual(classifyFreeSampleTelemetry("HEAD"), {
+    event: "free_sample_probe",
+    engagement: false,
+  });
+  assert.deepEqual(classifyFreeSampleTelemetry("GET"), {
+    event: "free_sample_view",
+    engagement: true,
+  });
+  assert.deepEqual(classifyFreeSampleTelemetry("POST"), {
+    event: "free_sample_view",
+    engagement: true,
+  });
 });
 
 test("x402 traffic classification keeps discovery separate from buyer intent", () => {
