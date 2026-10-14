@@ -6,6 +6,7 @@ const MAX_INPUT_BYTES = 100_000;
 const CRAWLER_USER_AGENT = /bot\b|crawler|spider|slurp|facebookexternalhit|headless|uptimerobot|vercel-screenshot|google-inspection/i;
 const AGENT_USER_AGENT = /x402|\bmcp\b|agent|langchain|autogen|openai|anthropic|claude|python-requests|httpx|aiohttp|curl|wget|node-fetch|undici|go-http-client/i;
 const BROWSER_USER_AGENT = /mozilla\//i;
+const SYNTHETIC_PROBE_USER_AGENT = /^agent402-production-check(?:\/[0-9A-Za-z._-]+)?$/i;
 
 export function classifyCaller(userAgent = "") {
   const value = typeof userAgent === "string" ? userAgent.trim() : "";
@@ -16,8 +17,17 @@ export function classifyCaller(userAgent = "") {
   return "unknown";
 }
 
-export function classifyFreeSampleTelemetry({ method = "GET", callerClass = "unknown" } = {}) {
+export function isSyntheticProbe({ userAgent = "", marker = "" } = {}) {
+  const normalizedUserAgent = typeof userAgent === "string" ? userAgent.trim() : "";
+  const normalizedMarker = typeof marker === "string" ? marker.trim().toLowerCase() : "";
+  return normalizedMarker === "production-check" || SYNTHETIC_PROBE_USER_AGENT.test(normalizedUserAgent);
+}
+
+export function classifyFreeSampleTelemetry({ method = "GET", callerClass = "unknown", syntheticProbe = false } = {}) {
   const normalizedMethod = String(method).toUpperCase();
+  if (syntheticProbe) {
+    return { event: "free_sample_probe", engagement: false, trafficClass: "synthetic_probe" };
+  }
   if (normalizedMethod === "HEAD") {
     return { event: "free_sample_probe", engagement: false, trafficClass: "availability_probe" };
   }
