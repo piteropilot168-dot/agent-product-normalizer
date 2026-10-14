@@ -57,7 +57,7 @@ import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, taskGate, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
 import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, noProgressGate, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep, contextFreshness, callValueGate } from "./agentops.mjs";
-import { classifyCaller, classifyFreeSampleTelemetry, classifyX402Traffic, createCatalogSweepDetector, hashText } from "./utility.mjs";
+import { classifyCaller, classifyFreeSampleTelemetry, classifyX402Traffic, createCatalogSweepDetector, hashText, isSyntheticProbe } from "./utility.mjs";
 import { createResilientFacilitatorClient } from "./facilitator.mjs";
 import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
 import {
@@ -69,7 +69,7 @@ import {
 } from "./services.mjs";
 
 
-export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPage = safeFetchHtml, paymentMiddlewareFactory = paymentMiddleware } = {}) {
+export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPage = safeFetchHtml, paymentMiddlewareFactory = paymentMiddleware, sampleTelemetryLogger = console.info } = {}) {
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
@@ -113,12 +113,18 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
     const requestMethod = req.method;
     const startedAt = Date.now();
     res.on("finish", () => {
-      const callerClass = classifyCaller(req.get("user-agent"));
+      const userAgent = req.get("user-agent");
+      const callerClass = classifyCaller(userAgent);
+      const syntheticProbe = isSyntheticProbe({
+        userAgent,
+        marker: req.get("x-agent402-probe"),
+      });
       const telemetry = classifyFreeSampleTelemetry({
         method: requestMethod,
         callerClass,
+        syntheticProbe,
       });
-      console.info(JSON.stringify({
+      sampleTelemetryLogger(JSON.stringify({
         event: telemetry.event,
         engagement: telemetry.engagement,
         trafficClass: telemetry.trafficClass,
@@ -127,6 +133,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
         status: res.statusCode,
         durationMs: Date.now() - startedAt,
         callerClass,
+        syntheticProbe,
         productId: paidPath.split("/").filter(Boolean).at(-1),
         paidPath,
       }));
