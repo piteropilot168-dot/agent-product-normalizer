@@ -209,6 +209,32 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
           },
           additionalProperties: false,
         },
+        FreeContextCompressionSample: {
+          type: "object",
+          required: ["free_sample", "objective", "compact_state", "decisions", "constraints", "blockers", "next_actions", "stats", "next"],
+          properties: {
+            free_sample: { type: "boolean", const: true },
+            objective: { type: "string" },
+            compact_state: { type: "array", maxItems: 30, items: { type: "string" } },
+            decisions: { type: "array", maxItems: 30, items: { type: "string" } },
+            constraints: { type: "array", maxItems: 30, items: { type: "string" } },
+            blockers: { type: "array", maxItems: 30, items: { type: "string" } },
+            next_actions: { type: "array", maxItems: 30, items: { type: "string" } },
+            stats: { $ref: "#/components/schemas/ContextCompressionStats" },
+            next: {
+              type: "object",
+              required: ["method", "path", "payment", "price"],
+              properties: {
+                method: { type: "string", const: "POST" },
+                path: { type: "string", const: "/api/v1/compress-context" },
+                payment: { type: "string", const: "x402" },
+                price: { type: "string" },
+              },
+              additionalProperties: false,
+            },
+          },
+          additionalProperties: false,
+        },
         DuplicateFact: {
           type: "object",
           required: ["index", "text", "duplicate_of", "similarity"],
@@ -633,6 +659,19 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
       "/api/v1/compress-context": {
         get: { operationId: "compressAgentContextByText", summary: "Compress context into operational state", parameters: [{ name: "context", in: "query", required: true, schema: { type: "string", maxLength: 20000 } }, { name: "max_items", in: "query", required: false, schema: { type: "integer", minimum: 3, maximum: 30, default: 12 } }], responses: compressionResponses },
         post: { ...textPost("compressAgentContext", "Compress context into operational state", "context", 20000, { properties: { max_items: { type: "integer", minimum: 3, maximum: 30, default: 12 } } }), responses: compressionResponses },
+      },
+      "/api/v1/compress-context/sample": {
+        get: {
+          operationId: "getFreeContextCompressionSample",
+          summary: "Get a free fixed context-compression result",
+          description: "Shows a compact operational handoff and paid replay path. No caller data or payment is required.",
+          responses: {
+            "200": {
+              description: "Free fixed sample; no payment required.",
+              content: { "application/json": { schema: { $ref: "#/components/schemas/FreeContextCompressionSample" } } },
+            },
+          },
+        },
       },
       "/api/v1/should-ask-human": {
         get: { operationId: "shouldAskHumanByTask", summary: "Decide whether to ask the human or safely infer and continue", parameters: [{ name: "task", in: "query", required: true, schema: { type: "string", maxLength: 10000 } }, { name: "known_context", in: "query", required: false, schema: { type: "string", maxLength: 15000 } }, { name: "proposed_assumption", in: "query", required: false, schema: { type: "string", maxLength: 4000 } }], responses },
