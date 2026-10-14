@@ -109,11 +109,12 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
   app.use((req, res, next) => {
     const paidPath = paidPathByFreeSample.get(req.path);
     if (!paidPath) return next();
+    const requestMethod = req.method;
     const startedAt = Date.now();
     res.on("finish", () => {
       console.info(JSON.stringify({
         event: "free_sample_view",
-        method: req.method,
+        method: requestMethod,
         path: req.path,
         status: res.statusCode,
         durationMs: Date.now() - startedAt,
@@ -122,6 +123,13 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
         paidPath,
       }));
     });
+    next();
+  });
+
+  // Some machine buyers POST to discovered preview URLs. Reuse the same
+  // deterministic, cacheable sample handlers instead of returning a false 404.
+  app.post([...paidPathByFreeSample.keys()], (req, _res, next) => {
+    req.method = "GET";
     next();
   });
 
