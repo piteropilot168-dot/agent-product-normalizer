@@ -85,6 +85,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
     ["/api/v1/prompt-injection-scan", "/api/v1/prompt-injection-scan/sample"],
     ["/api/v1/no-progress-gate", "/api/v1/no-progress-gate/sample"],
   ]);
+  const paidPathByFreeSample = new Map([...freeSamplesByPaidPath].map(([paidPath, samplePath]) => [samplePath, paidPath]));
   const freeTriesByPaidPath = new Map([
     ["/api/v1/no-progress-gate", "/api/v1/no-progress-gate/try"],
   ]);
@@ -102,6 +103,25 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       res.set("X-Agent402-Free-Try", freeTry);
     }
     if (links.length) res.set("Link", links.join(", "));
+    next();
+  });
+
+  app.use((req, res, next) => {
+    const paidPath = paidPathByFreeSample.get(req.path);
+    if (!paidPath) return next();
+    const startedAt = Date.now();
+    res.on("finish", () => {
+      console.info(JSON.stringify({
+        event: "free_sample_view",
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        durationMs: Date.now() - startedAt,
+        callerClass: classifyCaller(req.get("user-agent")),
+        productId: paidPath.split("/").filter(Boolean).at(-1),
+        paidPath,
+      }));
+    });
     next();
   });
 
