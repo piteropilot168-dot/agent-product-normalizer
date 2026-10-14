@@ -98,6 +98,7 @@ export default function handler(req, res) {
       description: "Compress long operational notes into compact state for downstream agents and handoffs. Use when the saved downstream context/model cost is larger than this network call.",
       endpoint: `${baseUrl}/api/v1/compress-context`,
       price: config.prices.compressContext,
+      freeSample: `${baseUrl}/api/v1/compress-context/sample`,
       tags: ["agents", "context", "compression", "handoff", "tokens"],
       examples: ["Compress these project notes into only the state needed for the next agent."]
     },
