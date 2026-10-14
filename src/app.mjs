@@ -80,6 +80,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
     ["/api/v1/hash", "/api/v1/hash/sample"],
     ["/api/v1/task-gate", "/api/v1/task-gate/sample"],
     ["/api/v1/call-value-gate", "/api/v1/call-value-gate/sample"],
+    ["/api/v1/compress-context", "/api/v1/compress-context/sample"],
     ["/api/v1/validate", "/api/v1/validate/sample"],
     ["/api/v1/missing-fields", "/api/v1/missing-fields/sample"],
     ["/api/v1/prompt-injection-scan", "/api/v1/prompt-injection-scan/sample"],
@@ -148,7 +149,7 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
       { id: "task-gate", name: "Agent Task Gate", description: "Preflight an autonomous action and return PROCEED, CLARIFY, ASK_HUMAN or STOP with missing fields, risks and the next safe action.", tags: ["agents", "preflight", "decision", "autonomy", "safety", "workflow"], methods: ["GET", "POST"], path: "/api/v1/task-gate", price: config.prices.taskGate },
       { id: "context-freshness", name: "Agent Context Freshness Gate", description: "Classify context as fresh, near expiry or stale and return a minimal refresh plan so long-running agents avoid redundant fetches, tool calls and context tokens.", tags: ["agents", "context", "freshness", "ttl", "cache", "stale-context", "tool-calls"], methods: ["GET", "POST"], path: "/api/v1/context-freshness", price: config.prices.contextFreshness },
       { id: "call-value-gate", name: "Agent Call Value Gate", description: "Decide whether the next model, tool or human call is worth its cost by comparing expected net value, success probability, latency cost, alternatives and remaining budget.", tags: ["agents", "expected-value", "budget", "pre-call", "tool-call", "model-routing", "cost-control", "roi"], methods: ["GET", "POST"], path: "/api/v1/call-value-gate", price: config.prices.callValueGate, free_sample: "/api/v1/call-value-gate/sample" },
-      { id: "compress-context", methods: ["GET", "POST"], path: "/api/v1/compress-context", price: config.prices.compressContext },
+      { id: "compress-context", methods: ["GET", "POST"], path: "/api/v1/compress-context", price: config.prices.compressContext, free_sample: "/api/v1/compress-context/sample" },
       { id: "should-ask-human", methods: ["GET", "POST"], path: "/api/v1/should-ask-human", price: config.prices.shouldAskHuman },
       { id: "extract-constraints", methods: ["GET", "POST"], path: "/api/v1/extract-constraints", price: config.prices.extractConstraints },
       { id: "rank-results", methods: ["GET", "POST"], path: "/api/v1/rank-results", price: config.prices.rankResults },
@@ -219,6 +220,7 @@ Deterministic, low-cost x402 utilities that help autonomous agents avoid wasted 
 - [Hash sample](${baseUrl}/api/v1/hash/sample)
 - [Task Gate sample](${baseUrl}/api/v1/task-gate/sample)
 - [Call Value Gate sample](${baseUrl}/api/v1/call-value-gate/sample)
+- [Context Compressor sample](${baseUrl}/api/v1/compress-context/sample)
 - [Missing Fields sample](${baseUrl}/api/v1/missing-fields/sample)
 - [Prompt Injection Scan sample](${baseUrl}/api/v1/prompt-injection-scan/sample)
 - [No-Progress Gate sample](${baseUrl}/api/v1/no-progress-gate/sample)
@@ -273,7 +275,7 @@ Paid calls use USDC on Base through x402. Prices and request schemas are publish
 <script type="application/ld+json">${structuredData}</script></head><body>
 <main><h1>Agent Product Normalizer</h1><p>Deterministic, low-cost x402 utilities that help autonomous agents avoid wasted model calls, repeated tool loops, stale context and unsafe execution. The API also converts long video transcripts and public product pages into compact structured evidence.</p>
 <h2>When agents should use it</h2><ul><li>Gate an expensive model or tool call by expected value, latency and budget.</li><li>Stop retry loops when calls or results no longer change.</li><li>Check whether an autonomous action should proceed, clarify, ask a human or stop.</li><li>Refresh only stale context instead of fetching everything again.</li></ul>
-<h2>Try before paying</h2><p><a href="/api/v1/hash/sample">Hash sample</a> · <a href="/api/v1/task-gate/sample">Task Gate sample</a> · <a href="/api/v1/call-value-gate/sample">Call Value sample</a> · <a href="/api/v1/missing-fields/sample">Missing Fields sample</a> · <a href="/api/v1/prompt-injection-scan/sample">Prompt Injection sample</a> · <a href="/api/v1/no-progress-gate/sample">No-Progress sample</a></p>
+<h2>Try before paying</h2><p><a href="/api/v1/hash/sample">Hash sample</a> · <a href="/api/v1/task-gate/sample">Task Gate sample</a> · <a href="/api/v1/call-value-gate/sample">Call Value sample</a> · <a href="/api/v1/compress-context/sample">Context Compressor sample</a> · <a href="/api/v1/missing-fields/sample">Missing Fields sample</a> · <a href="/api/v1/prompt-injection-scan/sample">Prompt Injection sample</a> · <a href="/api/v1/no-progress-gate/sample">No-Progress sample</a></p>
 <h2>CLI quickstart</h2><p>Inspect the contract and a free result without a wallet:</p><pre><code>curl -sS ${baseUrl}/openapi.json
 curl -sS ${baseUrl}/api/v1/no-progress-gate/sample</code></pre><p>To inspect payment requirements without spending, call a paid route without a payment proof. The HTTP 402 response contains the <code>Payment-Required</code> header; retry through an x402-compatible client with its <code>PAYMENT-SIGNATURE</code> proof.</p>
 <h2>Developer resources</h2><p><a href="/openapi.json">OpenAPI</a> · <a href="/.well-known/x402">x402 manifest</a> · <a href="/.well-known/agent-card.json">Agent card</a> · <a href="/llms.txt">Agent instructions</a> · <a href="/.well-known/answer-base.json">Answer Base</a> · <a href="/catalog">JSON catalog</a></p>
@@ -304,6 +306,7 @@ curl -sS ${baseUrl}/api/v1/no-progress-gate/sample</code></pre><p>To inspect pay
     "/api/v1/hash/sample",
     "/api/v1/task-gate/sample",
     "/api/v1/call-value-gate/sample",
+    "/api/v1/compress-context/sample",
     "/api/v1/validate/sample",
     "/api/v1/missing-fields/sample",
     "/api/v1/prompt-injection-scan/sample",
@@ -359,6 +362,7 @@ Agent workflow utilities:
 - GET/POST /api/v1/call-value-gate — ${config.prices.callValueGate} — decide whether a proposed model, tool or human call creates enough expected value for its cost and remaining budget.
 - Free sample: GET /api/v1/call-value-gate/sample returns a fixed expected-value decision without payment; use GET/POST /api/v1/call-value-gate for your own call economics.
 - GET/POST /api/v1/compress-context — ${config.prices.compressContext} — compress long agent context into compact operational state.
+- Free sample: GET /api/v1/compress-context/sample returns a fixed compressed handoff without payment; use GET/POST /api/v1/compress-context for your own context.
 - GET/POST /api/v1/should-ask-human — ${config.prices.shouldAskHuman} — decide whether to ask the human or safely infer and continue.
 - GET/POST /api/v1/extract-constraints — ${config.prices.extractConstraints} — split a request into hard constraints, preferences, exclusions, budgets and deadlines.
 - GET/POST /api/v1/rank-results — ${config.prices.rankResults} — rank search results and flag duplicates, stale results and spam signals.
@@ -446,6 +450,12 @@ Notes for agent callers:
         resource: `${baseUrl}/api/v1/call-value-gate/sample`,
         payment_required: false,
         description: "Fixed expected-value decision to inspect Call Value Gate output before using the paid endpoint.",
+      }, {
+        id: "compress-context-sample",
+        method: "GET",
+        resource: `${baseUrl}/api/v1/compress-context/sample`,
+        payment_required: false,
+        description: "Fixed operational handoff to inspect Context Compressor output before using the paid endpoint.",
       }, {
         id: "missing-fields-sample",
         method: "GET",
@@ -1103,6 +1113,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       "/api/v1/hash/sample",
       "/api/v1/task-gate/sample",
       "/api/v1/call-value-gate/sample",
+      "/api/v1/compress-context/sample",
       "/api/v1/validate/sample",
       "/api/v1/missing-fields/sample",
       "/api/v1/prompt-injection-scan/sample",
@@ -1317,6 +1328,19 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       res.set("cache-control", "no-store").json(compressContext(source?.context, source?.max_items));
     } catch (error) { next(error); }
   };
+  app.get("/api/v1/compress-context/sample", (_req, res) => {
+    const context = "Objective: ship the release Friday. The team discussed the Friday release again and confirmed the same objective. Budget must stay under $500. Budget remains capped at $500 with no exceptions. Decision: use the existing deployment pipeline. The existing deployment pipeline was selected again after review. Blocker: DNS approval is pending. DNS approval is still pending and no new evidence is available. Next: verify the preview. After preview verification, request DNS approval. Status note: the release remains planned for Friday. Status note: the release remains planned for Friday.";
+    res.set("cache-control", "public, max-age=300").json({
+      free_sample: true,
+      ...compressContext(context, 6),
+      next: {
+        method: "POST",
+        path: "/api/v1/compress-context",
+        payment: "x402",
+        price: config.prices.compressContext,
+      },
+    });
+  });
   app.get("/api/v1/compress-context", compressHandler);
   app.post("/api/v1/compress-context", compressHandler);
 
