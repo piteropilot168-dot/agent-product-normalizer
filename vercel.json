@@ -5,6 +5,7 @@
     { "source": "/.well-known/agent.json", "destination": "/api/agent-card" },
     { "source": "/.well-known/ai-world-state.json", "destination": "/api/ai-world-state" },
     { "source": "/.well-known/ai-world-delta.json", "destination": "/api/ai-world-delta" },
+    { "source": "/.well-known/answer-base.json", "destination": "/api/answer-base" },
     { "source": "/(.*)", "destination": "/api" }
   ]
 }
