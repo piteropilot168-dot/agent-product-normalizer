@@ -16,17 +16,17 @@ export function classifyCaller(userAgent = "") {
   return "unknown";
 }
 
-export function classifyFreeSampleTelemetry({ method = "GET", callerClass = "unknown", catalogSweep = false, integrationProbe = false } = {}) {
-  if (String(method).toUpperCase() === "HEAD") {
+export function classifyFreeSampleTelemetry({ method = "GET", callerClass = "unknown" } = {}) {
+  const normalizedMethod = String(method).toUpperCase();
+  if (normalizedMethod === "HEAD") {
     return { event: "free_sample_probe", engagement: false, trafficClass: "availability_probe" };
   }
   if (callerClass === "crawler") {
     return { event: "free_sample_probe", engagement: false, trafficClass: "crawler_probe" };
   }
-  if (catalogSweep) {
-    return { event: "free_sample_catalog_sweep_detected", engagement: false, trafficClass: "catalog_sweep" };
-  }
-  if (integrationProbe) {
+  // Sample responses are fixed and ignore request bodies, so POST is an
+  // interoperability check rather than evidence that the result was consumed.
+  if (normalizedMethod === "POST") {
     return { event: "free_sample_probe", engagement: false, trafficClass: "integration_probe" };
   }
   return { event: "free_sample_view", engagement: true, trafficClass: "sample_engagement" };
