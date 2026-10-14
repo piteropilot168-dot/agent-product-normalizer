@@ -57,7 +57,7 @@ import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, taskGate, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
 import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, noProgressGate, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep, contextFreshness, callValueGate } from "./agentops.mjs";
-import { classifyCaller, classifyX402Traffic, createCatalogSweepDetector, hashText } from "./utility.mjs";
+import { classifyCaller, classifyFreeSampleTelemetry, classifyX402Traffic, createCatalogSweepDetector, hashText } from "./utility.mjs";
 import { createResilientFacilitatorClient } from "./facilitator.mjs";
 import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
 import {
@@ -113,8 +113,10 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
     const requestMethod = req.method;
     const startedAt = Date.now();
     res.on("finish", () => {
+      const telemetry = classifyFreeSampleTelemetry(requestMethod);
       console.info(JSON.stringify({
-        event: "free_sample_view",
+        event: telemetry.event,
+        engagement: telemetry.engagement,
         method: requestMethod,
         path: req.path,
         status: res.statusCode,
