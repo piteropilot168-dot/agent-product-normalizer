@@ -519,6 +519,28 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
       },
       "/api/v1/normalize": { get: singleGet("normalizeProductPageByUrl", "Normalize one public product page"), post: singlePost("normalizeProductPage", "Normalize one public product page") },
       "/api/v1/extract-offer": { get: singleGet("extractOfferByUrl", "Extract compact offer facts"), post: singlePost("extractOffer", "Extract compact offer facts") },
+      "/api/v1/validate/sample": {
+        get: {
+          operationId: "getFreeValidateSample",
+          summary: "Preview a fixed product-data validation result",
+          description: "Shows the exact validation response shape and paid handoff without fetching caller data or requiring payment.",
+          responses: {
+            "200": {
+              description: "Free fixed validation sample; no payment required.",
+              content: { "application/json": { schema: { type: "object", additionalProperties: true }, example: {
+                free_sample: true,
+                url: "https://example.invalid/demo-product",
+                score: 100,
+                grade: "A",
+                usable_for_agents: true,
+                issues: [],
+                normalized_quality: { confidence: 0.98, sources: ["json-ld", "meta"], warnings: [] },
+                next: { method: "POST", path: "/api/v1/validate", payment: "x402", price: "$0.02", input: { url: "https://merchant.example/product" } },
+              } } },
+            },
+          },
+        },
+      },
       "/api/v1/validate": { get: singleGet("validateProductDataByUrl", "Score product-data quality"), post: singlePost("validateProductData", "Score product-data quality") },
       "/api/v1/compare": {
         get: { operationId: "compareProductOffersByUrls", summary: "Compare 2 to 5 product pages", parameters: [{ name: "url", in: "query", required: true, schema: { type: "array", minItems: 2, maxItems: 5, items: url }, style: "form", explode: true }], responses },
