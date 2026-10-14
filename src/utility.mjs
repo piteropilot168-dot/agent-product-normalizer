@@ -16,10 +16,20 @@ export function classifyCaller(userAgent = "") {
   return "unknown";
 }
 
-export function classifyFreeSampleTelemetry(method = "GET") {
-  return String(method).toUpperCase() === "HEAD"
-    ? { event: "free_sample_probe", engagement: false }
-    : { event: "free_sample_view", engagement: true };
+export function classifyFreeSampleTelemetry({ method = "GET", callerClass = "unknown" } = {}) {
+  const normalizedMethod = String(method).toUpperCase();
+  if (normalizedMethod === "HEAD") {
+    return { event: "free_sample_probe", engagement: false, trafficClass: "availability_probe" };
+  }
+  if (callerClass === "crawler") {
+    return { event: "free_sample_probe", engagement: false, trafficClass: "crawler_probe" };
+  }
+  // Sample responses are fixed and ignore request bodies, so POST is an
+  // interoperability check rather than evidence that the result was consumed.
+  if (normalizedMethod === "POST") {
+    return { event: "free_sample_probe", engagement: false, trafficClass: "integration_probe" };
+  }
+  return { event: "free_sample_view", engagement: true, trafficClass: "sample_engagement" };
 }
 
 export function classifyX402Traffic({ hasPaymentProof = false, callerClass = "unknown", inputPresent = false, catalogSweep = false, integrationProbe = false, intentConfirmed = false } = {}) {

@@ -113,15 +113,20 @@ export function createApp({ payments = process.env.NODE_ENV !== "test", fetchPag
     const requestMethod = req.method;
     const startedAt = Date.now();
     res.on("finish", () => {
-      const telemetry = classifyFreeSampleTelemetry(requestMethod);
+      const callerClass = classifyCaller(req.get("user-agent"));
+      const telemetry = classifyFreeSampleTelemetry({
+        method: requestMethod,
+        callerClass,
+      });
       console.info(JSON.stringify({
         event: telemetry.event,
         engagement: telemetry.engagement,
+        trafficClass: telemetry.trafficClass,
         method: requestMethod,
         path: req.path,
         status: res.statusCode,
         durationMs: Date.now() - startedAt,
-        callerClass: classifyCaller(req.get("user-agent")),
+        callerClass,
         productId: paidPath.split("/").filter(Boolean).at(-1),
         paidPath,
       }));
