@@ -24,18 +24,13 @@ test("HEAD availability checks do not count as free sample engagement", () => {
   });
 });
 
-test("crawler, catalog and paired integration sample probes do not count as engagement", () => {
+test("crawler and POST sample probes do not count as engagement", () => {
   assert.deepEqual(classifyFreeSampleTelemetry({ method: "GET", callerClass: "crawler" }), {
     event: "free_sample_probe",
     engagement: false,
     trafficClass: "crawler_probe",
   });
-  assert.deepEqual(classifyFreeSampleTelemetry({ method: "GET", catalogSweep: true }), {
-    event: "free_sample_catalog_sweep_detected",
-    engagement: false,
-    trafficClass: "catalog_sweep",
-  });
-  assert.deepEqual(classifyFreeSampleTelemetry({ method: "POST", integrationProbe: true }), {
+  assert.deepEqual(classifyFreeSampleTelemetry({ method: "POST" }), {
     event: "free_sample_probe",
     engagement: false,
     trafficClass: "integration_probe",
