@@ -1103,6 +1103,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       "/api/v1/hash/sample",
       "/api/v1/task-gate/sample",
       "/api/v1/call-value-gate/sample",
+      "/api/v1/validate/sample",
       "/api/v1/missing-fields/sample",
       "/api/v1/prompt-injection-scan/sample",
       "/api/v1/no-progress-gate/sample",
