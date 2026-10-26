@@ -1,4 +1,4 @@
-name: Register Agent402 No-Progress Gate in x402dash
+name: Register Agent402 Task Gate in x402dash
 on:
   push:
     branches: [main]
@@ -11,12 +11,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Submit one existing paid x402 endpoint to free public registry
+      - name: Verify GET payment challenge then submit one endpoint
         run: |
           set -euo pipefail
+          ENDPOINT='https://agent-product-normalizer.vercel.app/api/v1/task-gate'
+          STATUS=$(curl --silent --show-error --max-time 20 \
+            -H 'X-Agent402-Probe: production-check' \
+            -o /dev/null -w '%{http_code}' "$ENDPOINT")
+          echo "Preflight GET HTTP $STATUS"
+          if [ "$STATUS" != '402' ]; then
+            echo 'Registration skipped: directory requires GET returning HTTP 402.'
+            exit 1
+          fi
           curl --silent --show-error --fail-with-body --max-time 25 \
             -X POST 'https://api.x402dash.com/v1/register' \
             -H 'Content-Type: application/json' \
-            --data '{"url":"https://agent-product-normalizer.vercel.app/api/v1/no-progress-gate","name":"Agent No-Progress Gate","description":"Detect unchanged agent results and retry loops before wasting additional model or tool calls. Deterministic x402 paid endpoint with free example.","category":"AI/Agents","tags":["agents","retry-loop","cost-control","no-progress","x402"]}'
+            --data '{"url":"https://agent-product-normalizer.vercel.app/api/v1/task-gate","name":"Agent Task Gate","description":"Preflight autonomous agent actions; returns PROCEED, CLARIFY, ASK_HUMAN or STOP with missing fields and safe next step. Paid x402 utility with free example.","category":"AI/Agents","tags":["agents","preflight","decision","autonomy","safety","x402"]}'
           echo
-          echo 'Submitted to x402dash. Verify public search independently before claiming indexed.'
+          echo 'Verify public search independently before claiming indexed.'
