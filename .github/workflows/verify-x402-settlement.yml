@@ -1,0 +1,56 @@
+name: Verify x402 settlement on Base (read-only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-x402-settlement.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify on-chain USDC transfer and correct recipient without signing
+        env:
+          TX_HASH: '0xef5dfdb54bc81e62393b47c794ebb424e5e723979460d0eb9b772c0ec9842fa9'
+          EXPECTED_PAY_TO: '0xe17C055B4CBA106B3b86EA3c41F5f9C0558194E3'
+          USDC_BASE: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+          EXPECTED_UNITS: '5000'
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request, time, sys
+          rpc_urls=['https://mainnet.base.org','https://base-rpc.publicnode.com','https://base.llamarpc.com']
+          def rpc(method,params):
+              errors=[]
+              for url in rpc_urls:
+                  try:
+                      data=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode()
+                      req=urllib.request.Request(url,data=data,headers={'Content-Type':'application/json','User-Agent':'agent402-readonly-audit/1'})
+                      with urllib.request.urlopen(req,timeout=12) as response: result=json.load(response)
+                      if 'error' in result: raise RuntimeError(str(result['error']))
+                      return result['result']
+                  except Exception as e: errors.append(f'{url}: {type(e).__name__} {str(e)[:120]}')
+              raise RuntimeError('RPC unavailable: '+'; '.join(errors))
+          chain=rpc('eth_chainId',[])
+          assert int(chain,16)==8453, f'Unexpected chain {chain}'
+          tx=os.environ['TX_HASH']
+          receipt=rpc('eth_getTransactionReceipt',[tx])
+          assert receipt, 'Transaction not found on Base'
+          assert int(receipt['status'],16)==1, 'Transaction reverted'
+          transfer_topic='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+          recipient=os.environ['EXPECTED_PAY_TO'].lower()[2:]
+          usdc=os.environ['USDC_BASE'].lower()
+          expected=int(os.environ['EXPECTED_UNITS'])
+          matches=[]
+          for log in receipt.get('logs',[]):
+              topics=log.get('topics',[])
+              if log['address'].lower()==usdc and len(topics)>=3 and topics[0].lower()==transfer_topic and topics[2][-40:].lower()==recipient:
+                  amount=int(log['data'],16)
+                  matches.append({'sender':'0x'+topics[1][-40:],'recipient':'0x'+topics[2][-40:],'amount_units':amount})
+          assert any(x['amount_units']==expected for x in matches), f'No expected {expected} USDC units to expected recipient; transfers={matches}'
+          head=int(rpc('eth_blockNumber',[]),16)
+          block=int(receipt['blockNumber'],16)
+          print(json.dumps({'result':'VERIFIED_ONCHAIN','chain_id':8453,'transaction':tx,'status':'success','usdc_contract':usdc,'recipient':os.environ['EXPECTED_PAY_TO'],'amount_usdc':expected/1e6,'block':block,'confirmations':head-block+1,'matching_transfers':matches},indent=2))
+          PY
