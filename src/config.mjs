@@ -1,4 +1,10 @@
+// Historical fallback is retained only for local development/tests.
+// Hosted deployments must provide an explicitly configured payout wallet;
+// otherwise fail closed instead of routing real payments to an unverified address.
 const DEFAULT_PAY_TO = "0x74eCCC9bEC502d9Eb390bF15198A234447Dc59F8";
+if (process.env.VERCEL && !process.env.PAY_TO_ADDRESS) {
+  throw new Error("PAY_TO_ADDRESS must be configured for hosted deployments");
+}
 
 export const config = {
   payTo: process.env.PAY_TO_ADDRESS || DEFAULT_PAY_TO,
