@@ -1,0 +1,43 @@
+name: Production x402 payment safety
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify live payment challenge and payout recipient without paying
+        env:
+          ORIGIN: https://agent-product-normalizer.vercel.app
+          EXPECTED_PAY_TO: '0xe17C055B4CBA106B3b86EA3c41F5f9C0558194E3'
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const origin = process.env.ORIGIN;
+          const expected = process.env.EXPECTED_PAY_TO.toLowerCase();
+          const manifestResponse = await fetch(origin+'/.well-known/x402.json', {headers:{'x-agent402-probe':'production-check'}});
+          assert.equal(manifestResponse.status,200,'manifest must respond 200');
+          const manifest=await manifestResponse.json();
+          assert.equal(manifest.payTo?.toLowerCase(),expected,'manifest payout address mismatch');
+          assert.equal(manifest.network,'eip155:8453','unexpected chain');
+          const body=JSON.stringify({history:[{tool:'search',args:{q:'agent loops'},result:{hits:0}},{tool:'search',args:{q:'agent loops'},result:{hits:0}}]});
+          const headers={'content-type':'application/json','x-agent402-probe':'production-check'};
+          const response=await fetch(origin+'/api/v1/no-progress-gate',{method:'POST',headers,body});
+          assert.equal(response.status,402,'unpaid request must be HTTP 402');
+          const paymentRequired=response.headers.get('payment-required');
+          assert.ok(paymentRequired,'missing PAYMENT-REQUIRED header');
+          const challenge=JSON.parse(Buffer.from(paymentRequired,'base64').toString('utf8'));
+          assert.equal(challenge.x402Version,2,'unexpected x402 version');
+          assert.ok(Array.isArray(challenge.accepts)&&challenge.accepts.length>0,'missing payment offers');
+          assert.ok(challenge.accepts.some(a=>a.payTo?.toLowerCase()===expected&&a.network==='eip155:8453'),'402 challenge must use configured recipient on Base');
+          const invalid=await fetch(origin+'/api/v1/no-progress-gate',{method:'POST',headers:{...headers,'payment-signature':'invalid-test-proof'},body});
+          assert.notEqual(invalid.status,200,'invalid payment proof must not unlock paid content');
+          const sample=await fetch(origin+'/api/v1/no-progress-gate/sample',{headers:{'x-agent402-probe':'production-check'}});
+          assert.equal(sample.status,200,'free sample unavailable');
+          const sampleData=await sample.json();
+          assert.equal(sampleData.free_sample,true,'free sample flag missing');
+          console.log(JSON.stringify({manifest:'PASS',unpaid_402:'PASS',recipient:'PASS',invalid_proof_rejected:'PASS',free_sample:'PASS',no_payment_sent:true}));
+          NODE
