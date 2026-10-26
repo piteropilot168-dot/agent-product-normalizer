@@ -238,6 +238,7 @@ Deterministic, low-cost x402 utilities that help autonomous agents avoid wasted 
 - [Missing Fields sample](${baseUrl}/api/v1/missing-fields/sample)
 - [Prompt Injection Scan sample](${baseUrl}/api/v1/prompt-injection-scan/sample)
 - [No-Progress Gate sample](${baseUrl}/api/v1/no-progress-gate/sample)
+- [Try your own two-event loop for free (POST /api/v1/no-progress-gate/try)](https://github.com/piteropilot168-dot/agent-product-normalizer#stop-expensive-agent-retry-loops--try-before-paying)
 
 ## CLI quickstart
 
@@ -290,6 +291,7 @@ Paid calls use USDC on Base through x402. Prices and request schemas are publish
 <main><h1>Agent Product Normalizer</h1><p>Deterministic, low-cost x402 utilities that help autonomous agents avoid wasted model calls, repeated tool loops, stale context and unsafe execution. The API also converts long video transcripts and public product pages into compact structured evidence.</p>
 <h2>When agents should use it</h2><ul><li>Gate an expensive model or tool call by expected value, latency and budget.</li><li>Stop retry loops when calls or results no longer change.</li><li>Check whether an autonomous action should proceed, clarify, ask a human or stop.</li><li>Refresh only stale context instead of fetching everything again.</li></ul>
 <h2>Try before paying</h2><p><a href="/api/v1/hash/sample">Hash sample</a> · <a href="/api/v1/task-gate/sample">Task Gate sample</a> · <a href="/api/v1/call-value-gate/sample">Call Value sample</a> · <a href="/api/v1/compress-context/sample">Context Compressor sample</a> · <a href="/api/v1/missing-fields/sample">Missing Fields sample</a> · <a href="/api/v1/prompt-injection-scan/sample">Prompt Injection sample</a> · <a href="/api/v1/no-progress-gate/sample">No-Progress sample</a></p>
+<p><strong>Try your own retry loop free:</strong> no wallet or API key needed. POST 2–3 tool-call events to <code>/api/v1/no-progress-gate/try</code>; the JSON response gives the decision and the paid x402 next step. <a href="https://github.com/piteropilot168-dot/agent-product-normalizer#stop-expensive-agent-retry-loops--try-before-paying">Copy a ready-to-run curl example</a>.</p>
 <h2>CLI quickstart</h2><p>Inspect the contract and a free result without a wallet:</p><pre><code>curl -sS ${baseUrl}/openapi.json
 curl -sS ${baseUrl}/api/v1/no-progress-gate/sample</code></pre><p>To inspect payment requirements without spending, call a paid route without a payment proof. The HTTP 402 response contains the <code>Payment-Required</code> header; retry through an x402-compatible client with its <code>PAYMENT-SIGNATURE</code> proof.</p>
 <h2>Developer resources</h2><p><a href="/openapi.json">OpenAPI</a> · <a href="/.well-known/x402">x402 manifest</a> · <a href="/.well-known/agent-card.json">Agent card</a> · <a href="/llms.txt">Agent instructions</a> · <a href="/.well-known/answer-base.json">Answer Base</a> · <a href="/catalog">JSON catalog</a></p>
