@@ -768,6 +768,11 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
       },
       "/api/v1/no-progress-gate": {
         post: {
+          // OpenAPI-first x402scan discovery; the paid handler and x402 v2 wire format are unchanged.
+          "x-payment-info": {
+            protocols: [{ x402: {} }],
+            price: { mode: "fixed", currency: "USD", amount: "0.003" },
+          },
           operationId: "noProgressGate",
           summary: "Stop repeated tool loops when calls, results, failures, or budgets show no progress",
           requestBody: { required: true, content: { "application/json": { schema: {
