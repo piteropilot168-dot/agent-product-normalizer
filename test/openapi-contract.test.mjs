@@ -114,3 +114,17 @@ test("Observed context-safety tools publish exact response contracts", () => {
   assert.deepEqual(document.components.schemas.SecretRedactionResult.properties.types.items.enum, ["evm-private-key", "jwt", "generic-api-key", "aws-access-key", "github-token"]);
   assert.equal(document.components.schemas.HandoffDiffResult.properties.changed.type, "boolean");
 });
+
+test("No-Progress Gate is OpenAPI-discoverable as a paid x402 v2 operation", () => {
+  const document = openApiDocument("https://example.test");
+  const paid = document.paths["/api/v1/no-progress-gate"].post;
+  assert.deepEqual(paid["x-payment-info"], {
+    protocols: [{ x402: {} }],
+    price: { mode: "fixed", currency: "USD", amount: "0.003" },
+  });
+  assert.ok(paid.requestBody.content["application/json"].schema.properties.history);
+  assert.ok(paid.responses["402"].headers["Payment-Required"]);
+  const free = document.paths["/api/v1/no-progress-gate/try"].post;
+  assert.equal(free["x-payment-info"], undefined);
+  assert.ok(free.responses["200"]);
+});
