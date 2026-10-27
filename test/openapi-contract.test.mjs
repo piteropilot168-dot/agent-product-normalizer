@@ -128,3 +128,25 @@ test("No-Progress Gate is OpenAPI-discoverable as a paid x402 v2 operation", () 
   assert.equal(free["x-payment-info"], undefined);
   assert.ok(free.responses["200"]);
 });
+
+
+test("No-Progress Gate publishes a reproducible buyer request example for free and paid routes", () => {
+  const document = openApiDocument("https://example.test");
+  const free = document.paths["/api/v1/no-progress-gate/try"].post.requestBody.content["application/json"];
+  const paid = document.paths["/api/v1/no-progress-gate"].post.requestBody.content["application/json"];
+  assert.equal(free.example.history.length, 3);
+  assert.deepEqual(paid.example.history, free.example.history);
+  assert.equal(paid.example.exact_repeat_limit, 3);
+  assert.equal(paid.example.unchanged_result_limit, 3);
+  for (const event of free.example.history) {
+    assert.equal(event.tool, "web_search");
+    assert.equal(event.status, "success");
+    assert.equal(event.result.hits, 0);
+    assert.equal(typeof event.cost_usd, "number");
+  }
+  assert.ok(free.example.history.length <= free.schema.properties.history.maxItems);
+  assert.ok(paid.example.history.length <= paid.schema.properties.history.maxItems);
+  assert.deepEqual(document.paths["/api/v1/no-progress-gate"].post["x-payment-info"].price, {
+    mode: "fixed", currency: "USD", amount: "0.003"
+  });
+});
