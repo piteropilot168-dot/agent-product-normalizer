@@ -25,6 +25,10 @@ The free trial accepts 2–3 tool events with default thresholds. The response c
 
 Agent402 gates are designed to prevent a more expensive model/tool/retry action. Compare the gate price with the expected cost of the work it can avoid, not with zero. For example, `no-progress-gate` costs $0.003; under current public token prices, avoiding one representative 1k-input/500-output GPT-5.6 Sol call (~$0.014) is about 4.7x the gate price before tool fees or latency. Cheap-model workloads need more avoided calls to break even. See [`docs/economics.md`](docs/economics.md) for explicit break-even examples and the measurement rule. Do not infer energy savings from tokens unless the runtime provides a defensible energy model.
 
+## Integration and paid-pilot inquiries
+
+If you are evaluating No-Progress Gate or another existing x402 endpoint in a real agent workflow, [open a structured integration inquiry](https://github.com/piteropilot168-dot/agent-product-normalizer/issues/new?template=integration-request.yml). Include the use case, expected call volume, and integration constraints. The issue is public; never include credentials, private traces, payment proofs, or customer data. Asking is free and does not initiate a payment.
+
 ## CLI quickstart
 
 Inspect discovery and a free response shape without a wallet:
