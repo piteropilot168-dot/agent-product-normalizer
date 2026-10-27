@@ -1,0 +1,32 @@
+name: Verify public Agent402.tools seller index (read-only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-agent402-tools-index.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Read documented free seller index endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error --max-time 25 \
+            -o /tmp/agent402-index.json \
+            -w '%{http_code}' \
+            'https://agent402.tools/api/index?seller=agent402.dev')
+          echo "Public index HTTP: $status"
+          cat /tmp/agent402-index.json
+          echo
+          if [[ "$status" -ne 200 ]]; then
+            echo 'Public index could not be independently verified.'
+            exit 1
+          fi
+          node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('/tmp/agent402-index.json','utf8')); console.log('Parsed public index response:',JSON.stringify(j).slice(0,5000));"
