@@ -49,12 +49,17 @@ test("crawler and POST sample probes do not count as engagement", () => {
   });
 });
 
-test("hosting share and marketing query parameters never count as paid GET input", () => {
+test("paid GET telemetry requires recognized, nonempty product input instead of arbitrary query strings", () => {
   assert.equal(hasMeaningfulX402Input({ method: "GET", query: { _vercel_share: "redacted" } }), false);
   assert.equal(hasMeaningfulX402Input({ method: "GET", query: { utm_source: "directory", gclid: "tracking" } }), false);
+  assert.equal(hasMeaningfulX402Input({ method: "GET", query: { foo: "bar", ref: "directory", page: "2" } }), false);
   assert.equal(hasMeaningfulX402Input({ method: "GET", query: { task: "review", _vercel_share: "redacted" } }), true);
+  assert.equal(hasMeaningfulX402Input({ method: "GET", query: { url: "https://example.com/item" } }), true);
+  assert.equal(hasMeaningfulX402Input({ method: "GET", query: { task: "   ", foo: "bar" } }), false);
+  assert.equal(hasMeaningfulX402Input({ method: "GET", query: { history: [] } }), false);
+  assert.equal(hasMeaningfulX402Input({ method: "GET", query: { history: ["tool-call"] } }), true);
   assert.equal(hasMeaningfulX402Input({ method: "GET", query: {} }), false);
-  assert.equal(hasMeaningfulX402Input({ method: "HEAD", query: {} }), false);
+  assert.equal(hasMeaningfulX402Input({ method: "HEAD", query: { task: "review" } }), false);
   assert.equal(hasMeaningfulX402Input({ method: "POST", query: {} }), true);
 });
 

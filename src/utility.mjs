@@ -43,12 +43,28 @@ export function classifyFreeSampleTelemetry({ method = "GET", callerClass = "unk
 }
 
 // Ignore hosting/share and marketing query parameters when measuring buyer intent.
-// A Vercel read-only share URL appends _vercel_share, which is not product input.
+// Only known product input fields indicate a possible paid GET evaluation.
+// Unknown URL parameters (catalog probes, referral tags, arbitrary ?foo=bar)
+// must not inflate buyer-intent telemetry. This affects logging only, not x402.
+const PAID_GET_INPUT_KEYS = new Set([
+  "url", "urls", "text", "task", "input", "items", "query", "history",
+  "status", "before", "state", "transcript", "target", "results",
+  "context", "required_fields", "facts", "actions", "requirements",
+  "question", "tool", "payload", "content", "events", "observations",
+  "knownContext", "proposedAction",
+]);
+
 export function hasMeaningfulX402Input({ method = "GET", query = {} } = {}) {
   const verb = String(method).toUpperCase();
   if (verb === "POST") return true;
   if (verb !== "GET") return false;
-  return Object.keys(query || {}).some((key) => !/^(?:_vercel_[a-z0-9_-]+|utm_[a-z0-9_-]+|gclid|fbclid|msclkid)$/i.test(key));
+  return Object.entries(query || {}).some(([key, value]) => {
+    if (!PAID_GET_INPUT_KEYS.has(key) || value == null) return false;
+    if (typeof value === "string") return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === "object") return Object.keys(value).length > 0;
+    return true;
+  });
 }
 
 export function classifyX402Traffic({ hasPaymentProof = false, callerClass = "unknown", inputPresent = false, catalogSweep = false, integrationProbe = false, intentConfirmed = false } = {}) {
