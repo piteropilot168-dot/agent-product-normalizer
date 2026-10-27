@@ -57,7 +57,7 @@ import { InputError, safeFetchHtml } from "./safe-fetch.mjs";
 import { openApiDocument } from "./openapi.mjs";
 import { clarifyTask, taskGate, compressContext, shouldAskHuman, extractConstraints, rankResults } from "./friction.mjs";
 import { dedupeFacts, detectConflicts, extractActions, makeSearchQuery, missingFields, noProgressGate, retryDecision, promptInjectionScan, redactSecrets, handoffDiff, chooseNextStep, contextFreshness, callValueGate } from "./agentops.mjs";
-import { classifyCaller, classifyFreeSampleTelemetry, classifyX402Traffic, createCatalogSweepDetector, hashText, isSyntheticProbe } from "./utility.mjs";
+import { classifyCaller, classifyFreeSampleTelemetry, classifyX402Traffic, createCatalogSweepDetector, hasMeaningfulX402Input, hashText, isSyntheticProbe } from "./utility.mjs";
 import { createResilientFacilitatorClient } from "./facilitator.mjs";
 import { fetchVideoTranscript, videoBrief, videoKeyPoints, videoAnswerQuestion, videoChapters, videoClaims, videoActionItems, videoAnalyze } from "./video.mjs";
 import {
@@ -805,7 +805,7 @@ Video analysis is extractive/deterministic. Treat returned claims as candidates 
       }
 
       res.on("finish", () => {
-        const inputPresent = req.method !== "GET" || Object.keys(req.query || {}).length > 0;
+        const inputPresent = hasMeaningfulX402Input({ method: req.method, query: req.query });
         const event = !hasPaymentProof && res.statusCode === 402
           ? "x402_payment_required"
           : hasPaymentProof
