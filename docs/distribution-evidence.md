@@ -1,5 +1,13 @@
 # Agent402 distribution evidence (verified actions)
 
+## 2026-10-27 — Agent402.tools public seller index: independently verified
+
+- **Correct seller:** `https://agent-product-normalizer.vercel.app` (not the unrelated `agent402.dev` origin mistakenly used by an earlier one-time workflow).
+- **Free registration:** [GitHub Actions run 40498031668](https://github.com/piteropilot168-dot/agent-product-normalizer/actions/runs/40498031668), API HTTP 200, `listed:true`, correct origin, `toolCount:72`, `routable:true`, `health:1`. No payment or credential used.
+- **Independent public index verification:** [GitHub Actions run 40498092749](https://github.com/piteropilot168-dot/agent-product-normalizer/actions/runs/40498092749), `GET https://agent402.tools/api/index?seller=agent-product-normalizer.vercel.app` HTTP 200. Exact origin, `payTosByNetwork["eip155:8453"]` containing `0xe17C055B4CBA106B3b86EA3c41F5f9C0558194E3`, `toolCount:72` (`paidToolCount:63`), `routable:true`, `health:1`, and indexed `/api/v1/no-progress-gate`, `/api/v1/task-gate`, `/api/v1/compress-context`.
+- The initial directory attempt on `agent402.dev` indexed **someone else's** seller/payee and is not Agent Product Normalizer evidence. It was corrected. The one-time registration workflow was removed after success.
+- **Commercial status:** indexed and discoverable, **not** evidence of buyer demand, routing eligibility for any individual tool, settlement, customer or revenue. Prior on-chain crawler settlement remains recorded only once in the separate ledger.
+
 This file records external discovery actions, not revenue or customer conversions.
 
 ## 2026-10-27 — x402mpp discovery queue
