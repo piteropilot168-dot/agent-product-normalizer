@@ -29,6 +29,24 @@ Agent402 gates are designed to prevent a more expensive model/tool/retry action.
 
 If you are evaluating No-Progress Gate or another existing x402 endpoint in a real agent workflow, [open a structured integration inquiry](https://github.com/piteropilot168-dot/agent-product-normalizer/issues/new?template=integration-request.yml). Include the use case, expected call volume, and integration constraints. The issue is public; never include credentials, private traces, payment proofs, or customer data. Asking is free and does not initiate a payment.
 
+## Compress Context — existing x402 v2 route
+
+For agents handing off a long task, `compress-context` extracts a compact operational state (decisions, constraints, blockers and next actions). This is deterministic text processing, **not** lossless compression or an LLM summary. Inspect a **fixed, free example** before deciding whether to pay:
+
+```sh
+curl -sS https://agent-product-normalizer.vercel.app/api/v1/compress-context/sample
+```
+
+To submit **your own** context, use POST rather than putting private task text into a GET URL, where it may appear in logs and browser history:
+
+```sh
+curl -i -sS -X POST https://agent-product-normalizer.vercel.app/api/v1/compress-context \
+  -H 'content-type: application/json' \
+  --data '{"context":"Goal: ship the release. Decision: use the existing pipeline. Blocker: DNS approval pending. Next: verify preview, then request DNS approval.","max_items":6}'
+```
+
+The unpaid POST returns **HTTP 402**, not a compressed result. An x402 v2 client can inspect `Payment-Required` and, if the buyer authorizes the **$0.005 USDC on Base** charge, retry with `PAYMENT-SIGNATURE`. The fixed sample needs no wallet; processing your own context is paid. For privacy-sensitive or cheap local workloads, prefer local compression when it meets your needs. A catalog hit or HTTP 402 is not a sale.
+
 ## CLI quickstart
 
 Inspect discovery and a free response shape without a wallet:
