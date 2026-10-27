@@ -1,4 +1,4 @@
-name: Verify public Agent402.tools seller index (read-only)
+name: Verify our Agent Product Normalizer listing (read-only)
 on:
   push:
     branches: [main]
@@ -12,21 +12,29 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     steps:
-      - name: Read documented free seller index endpoint
+      - name: Check indexed seller identity, payee and existing routes
         shell: bash
         run: |
           set -euo pipefail
-          status=$(curl --silent --show-error --max-time 25 \
+          status=$(curl --silent --show-error --max-time 30 \
             -o /tmp/agent402-index.json \
             -w '%{http_code}' \
-            'https://agent402.tools/api/index?seller=agent402.dev')
+            'https://agent402.tools/api/index?seller=agent-product-normalizer.vercel.app')
           echo "Public index HTTP: $status"
-          cat /tmp/agent402-index.json
-          echo
-          if [[ "$status" -ne 200 ]]; then
-            echo 'Public index could not be independently verified.'
-            exit 1
-          fi
-          node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('/tmp/agent402-index.json','utf8')); console.log('Parsed public index response:',JSON.stringify(j).slice(0,5000));"
+          test "$status" = 200
+          node <<'NODE'
+          const fs = require('fs');
+          const j = JSON.parse(fs.readFileSync('/tmp/agent402-index.json','utf8'));
+          const expectedPayee='0xe17C055B4CBA106B3b86EA3c41F5f9C0558194E3';
+          if (j.origin !== 'https://agent-product-normalizer.vercel.app') throw Error('Wrong seller origin');
+          const payees = j.payTosByNetwork?.['eip155:8453'] || [j.payToByNetwork?.['eip155:8453']];
+          if (!payees.some(x=>typeof x==='string' && x.toLowerCase()===expectedPayee.toLowerCase())) throw Error('Expected USDC payee not indexed');
+          const routes=(j.tools||[]).map(x=>x.route);
+          for(const route of ['/api/v1/compress-context','/api/v1/task-gate','/api/v1/no-progress-gate']) {
+            if(!routes.includes(route)) throw Error('Missing existing product: '+route);
+          }
+          if (j.error || !j.routable) throw Error('Listing unhealthy or unroutable');
+          console.log(JSON.stringify({origin:j.origin,displayName:j.displayName,toolCount:j.toolCount,paidToolCount:j.paidToolCount,payees,health:j.health,routable:j.routable,checkedRoutes:routes.filter(x=>['/api/v1/compress-context','/api/v1/task-gate','/api/v1/no-progress-gate'].includes(x))}));
+          NODE
