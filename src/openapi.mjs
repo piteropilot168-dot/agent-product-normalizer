@@ -108,6 +108,17 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
     responses,
   });
 
+  // Reproducible, non-sensitive input for the free /try path and the paid x402 route.
+  // Three identical tool results are deliberately shown to demonstrate a retry loop.
+  const noProgressExampleHistory = Array.from({ length: 3 }, () => ({
+    tool: "web_search",
+    args: { query: "example API retry" },
+    result: { hits: 0 },
+    status: "success",
+    elapsed_ms: 120,
+    cost_usd: 0.002,
+  }));
+
   const resultItem = {
     type: "object",
     properties: {
@@ -759,7 +770,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
             properties: {
               history: { type: "array", minItems: 2, maxItems: 3, items: { type: "object", properties: { tool: { type: "string", minLength: 1, maxLength: 200 }, name: { type: "string", minLength: 1, maxLength: 200 }, args: {}, input: {}, result: {}, output: {}, error: {}, status: { type: "string", enum: ["success", "ok", "error", "failed", "failure"] }, elapsed_ms: { type: "number", minimum: 0 }, cost_usd: { type: "number", minimum: 0 } }, additionalProperties: false } },
             }, additionalProperties: false,
-          } } } },
+          }, example: { history: noProgressExampleHistory } } } },
           responses: {
             "200": { description: "Free constrained evaluation; no payment required.", content: { "application/json": { schema: { $ref: "#/components/schemas/FreeNoProgressGateTry" } } } },
             "400": { description: "Invalid or out-of-bounds free-try request." },
@@ -787,7 +798,7 @@ export function openApiDocument(baseUrl = "https://your-deployment.example") {
               max_cost_usd: { type: "number", exclusiveMinimum: 0, maximum: 1000000 },
               allow_human_escalation: { type: "boolean", default: false }
             }, additionalProperties: false
-          } } } },
+          }, example: { history: noProgressExampleHistory, exact_repeat_limit: 3, unchanged_result_limit: 3 } } } },
           responses: noProgressResponses
         }
       },
