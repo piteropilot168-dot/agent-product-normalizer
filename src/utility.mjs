@@ -42,6 +42,15 @@ export function classifyFreeSampleTelemetry({ method = "GET", callerClass = "unk
   return { event: "free_sample_view", engagement: true, trafficClass: "sample_engagement" };
 }
 
+// Ignore hosting/share and marketing query parameters when measuring buyer intent.
+// A Vercel read-only share URL appends _vercel_share, which is not product input.
+export function hasMeaningfulX402Input({ method = "GET", query = {} } = {}) {
+  const verb = String(method).toUpperCase();
+  if (verb === "POST") return true;
+  if (verb !== "GET") return false;
+  return Object.keys(query || {}).some((key) => !/^(?:_vercel_[a-z0-9_-]+|utm_[a-z0-9_-]+|gclid|fbclid|msclkid)$/i.test(key));
+}
+
 export function classifyX402Traffic({ hasPaymentProof = false, callerClass = "unknown", inputPresent = false, catalogSweep = false, integrationProbe = false, intentConfirmed = false } = {}) {
   if (hasPaymentProof) return "payment_attempt";
   if (callerClass === "crawler") return "crawler_probe";
