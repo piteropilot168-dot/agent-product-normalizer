@@ -1,0 +1,35 @@
+name: One-time free Agent402.tools seller listing
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/agent402-tools-register.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Submit public origin once to documented free directory API
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'Submitting only the public origin. No payment, wallet action, credentials or bypass.'
+          status=$(curl --silent --show-error --max-time 30 \
+            -o /tmp/agent402-directory-result.json \
+            -w '%{http_code}' \
+            -X POST 'https://agent402.tools/api/index/register' \
+            -H 'content-type: application/json' \
+            --data '{"origin":"https://agent402.dev"}')
+          echo "Directory API HTTP status: $status"
+          cat /tmp/agent402-directory-result.json
+          echo
+          if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
+            echo 'Registration was not accepted; do not claim a listing.'
+            exit 1
+          fi
+          echo 'Submission accepted by API; verify a public listing separately before claiming publication.'
