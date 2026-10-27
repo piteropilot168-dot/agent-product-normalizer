@@ -1,0 +1,30 @@
+name: One-time Agent402 submission to x402mpp discovery
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/submit-x402mpp-once.yml'
+permissions:
+  contents: read
+jobs:
+  submit:
+    if: contains(github.event.head_commit.message, 'Submit Agent402 to x402mpp')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Queue existing paid endpoint for free x402 v2 discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$(mktemp)"
+          status="$(curl --silent --show-error --max-time 20 --output "$result" --write-out '%{http_code}' \
+            --request POST 'https://api.x402mpp.sh/submit' \
+            --header 'Content-Type: application/json' \
+            --data '{"url":"https://agent-product-normalizer.vercel.app/api/v1/task-gate"}')"
+          echo "Discovery API HTTP status: $status"
+          cat "$result"
+          echo
+          case "$status" in
+            200|201|202) echo 'Submission accepted by discovery queue (not yet indexed).';;
+            *) echo 'Submission not confirmed.' >&2; exit 1;;
+          esac
