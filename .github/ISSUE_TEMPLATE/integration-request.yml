@@ -1,0 +1,47 @@
+name: "Agent402 integration / pilot inquiry"
+description: "Ask about integrating an existing paid x402 endpoint; no commitment or payment required."
+title: "[Integration] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is a public GitHub issue. Do not include API keys, wallet private keys, payment signatures, private customer data, or confidential traces.
+        We are looking for concrete use cases and real integration feedback, not generic promotions.
+  - type: dropdown
+    id: product
+    attributes:
+      label: Which existing capability are you evaluating?
+      options:
+        - No-Progress Gate (retry loop detection)
+        - Task Gate (proceed / clarify / stop)
+        - Context Compressor
+        - Video Analyze
+        - Other existing endpoint
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: What problem are you trying to solve?
+      description: "Describe the workflow and the unwanted cost, delay, or failure. Use synthetic examples only."
+      placeholder: "Our agent repeats the same search when results do not change..."
+    validations:
+      required: true
+  - type: input
+    id: volume
+    attributes:
+      label: Approximate usage (optional)
+      description: "For example, calls/day or typical retry cost. Estimates are fine."
+      placeholder: "1,000 tool calls/day; ~$0.02 per failed retry"
+  - type: textarea
+    id: integration
+    attributes:
+      label: Integration requirements (optional)
+      description: "SDK/language, x402 version, response schema, constraints, or questions."
+  - type: checkboxes
+    id: public-safe
+    attributes:
+      label: Public information only
+      options:
+        - label: "I have not included credentials, payment proofs, personal data, or confidential traces."
+          required: true
