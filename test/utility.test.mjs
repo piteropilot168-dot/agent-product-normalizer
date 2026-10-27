@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyCaller, classifyFreeSampleTelemetry, classifyX402Traffic, createCatalogSweepDetector, hashText, isSyntheticProbe } from "../src/utility.mjs";
+import { classifyCaller, classifyFreeSampleTelemetry, classifyX402Traffic, createCatalogSweepDetector, hasMeaningfulX402Input, hashText, isSyntheticProbe } from "../src/utility.mjs";
 
 test("caller classification separates crawlers, agents, browsers and unknown clients", () => {
   assert.equal(classifyCaller("Googlebot/2.1"), "crawler");
@@ -47,6 +47,15 @@ test("crawler and POST sample probes do not count as engagement", () => {
     engagement: false,
     trafficClass: "synthetic_probe",
   });
+});
+
+test("hosting share and marketing query parameters never count as paid GET input", () => {
+  assert.equal(hasMeaningfulX402Input({ method: "GET", query: { _vercel_share: "redacted" } }), false);
+  assert.equal(hasMeaningfulX402Input({ method: "GET", query: { utm_source: "directory", gclid: "tracking" } }), false);
+  assert.equal(hasMeaningfulX402Input({ method: "GET", query: { task: "review", _vercel_share: "redacted" } }), true);
+  assert.equal(hasMeaningfulX402Input({ method: "GET", query: {} }), false);
+  assert.equal(hasMeaningfulX402Input({ method: "HEAD", query: {} }), false);
+  assert.equal(hasMeaningfulX402Input({ method: "POST", query: {} }), true);
 });
 
 test("x402 traffic classification keeps discovery separate from buyer intent", () => {
