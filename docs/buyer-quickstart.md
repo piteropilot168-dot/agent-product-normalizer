@@ -19,7 +19,7 @@ curl --fail-with-body --silent --show-error \
   }'
 ```
 
-Inspect the returned `decision`, `reason`, `next_action` and `trace` rather than assuming a particular decision in production. For a repeated identical result, the expected signal is to stop retrying or reframe the request. This is a **free evaluation**, not a payment or a verified sale.
+The free-try response wraps the actual decision inside `result`. Read **`result.decision`**, **`result.reason`**, **`result.next_action`** and **`result.trace`** (not top-level `decision` or `trace`). The top-level `next` describes the optional paid x402 route; it does **not** initiate payment. For repeated identical results, the expected signal is to stop retrying or reframe the request. This is a **free evaluation**, not a payment or a verified sale.
 
 ## 2. Wire the decision into an existing agent loop
 
