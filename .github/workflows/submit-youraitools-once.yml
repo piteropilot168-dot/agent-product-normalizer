@@ -1,0 +1,22 @@
+name: Submit one free x402 v2 listing to YourAITools
+on:
+  push:
+    paths:
+      - .github/workflows/submit-youraitools-once.yml
+permissions:
+  contents: read
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Submit existing production API once (no payment)
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload='{"name":"Agent Product Normalizer — x402 Agent Utilities","url":"https://agent-product-normalizer.vercel.app","payTo":"0xe17C055B4CBA106B3b86EA3c41F5f9C0558194E3","category":"dev-tools","description":"Pay-per-call x402 v2 utilities for autonomous agents: detect repeated tool calls before costly retries, or compress task context for handoffs. Free samples available; no API key.","manifest":{"type":"x402","resources":[{"path":"/api/v1/compress-context","method":"GET","price":"$0.005","description":"Compress an agent task state for a concise handoff."},{"path":"/api/v1/no-progress-gate","method":"POST","price":"$0.003","description":"Detect repeated agent tool calls and recommend stopping or reframing retries."}]}}'
+          http_code="$(curl -sS --max-time 30 -o response.json -w '%{http_code}' -X POST 'https://api.youraitools.co/listing/v1/submit' -H 'content-type: application/json' --data "$payload")"
+          echo "HTTP status: $http_code"
+          cat response.json
+          echo
+          test "$http_code" = "202" || test "$http_code" = "409"
