@@ -4,6 +4,8 @@ A deterministic checkpoint for agents that are about to repeat the same paid too
 
 ## 1. Try your own trace without a wallet
 
+**Node.js 22+ (no dependencies, no wallet):** run [`examples/no-progress-gate-try.mjs`](../examples/no-progress-gate-try.mjs) from the repository root with `node examples/no-progress-gate-try.mjs`. The script sends a synthetic three-event trace to the free trial endpoint, prints the decision and never sends a payment signature. For your own **sanitized** 2–3 event trace, pipe a JSON object with a `history` array to the script using `--stdin`. Never include secrets, personal data, or customer records. The script was checked locally with a mock endpoint; that is not proof of a live payment or successful production call.
+
 The free endpoint accepts **2–3 events** and uses default thresholds. The following example contains three identical, unsuccessful searches. The data are synthetic and contain no customer information.
 
 ```sh
