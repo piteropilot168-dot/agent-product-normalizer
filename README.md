@@ -17,6 +17,7 @@ curl -sS -X POST https://agent-product-normalizer.vercel.app/api/v1/no-progress-
 The free trial accepts 2–3 tool events with default thresholds. The response contains `result` and `next` (the full paid route, price and x402 header names). For longer traces and configurable thresholds, send the same JSON to **`POST /api/v1/no-progress-gate`**, priced at **$0.003 USDC on Base**. An unpaid call returns HTTP 402 with the standard x402 v2 `Payment-Required` header; an x402-capable buyer retries with `PAYMENT-SIGNATURE`.
 
 - [Free fixed example](https://agent-product-normalizer.vercel.app/api/v1/no-progress-gate/sample) · [Machine-readable API](https://agent-product-normalizer.vercel.app/openapi.json) · [x402 manifest](https://agent-product-normalizer.vercel.app/.well-known/x402)
+- [Zero-dependency Python free-trial example](examples/no_progress_gate_try.py) · [Zero-dependency Node.js free-trial example](examples/no-progress-gate-try.mjs). Both run without a wallet or payment; send only sanitized traces.
 - [Buyer quickstart: try a real trace free, then decide whether paid calls make economic sense](docs/buyer-quickstart.md) · [Cost and break-even examples](docs/economics.md). Only use the gate when the expected avoided cost exceeds its price; there is no benefit in adding a remote call to a cheaper local decision.
 - Payment verification and settlement are handled by the configured x402 facilitator. Public deployment/HTTP 402 alone **does not prove** any paid sale or end-to-end settlement.
 
