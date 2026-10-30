@@ -22,6 +22,16 @@ The free trial accepts 2–3 tool events with default thresholds. The response c
 - Payment verification and settlement are handled by the configured x402 facilitator. Public deployment/HTTP 402 alone **does not prove** any paid sale or end-to-end settlement.
 
 
+## Free local ROI calculator (no payment required)
+
+Before integrating a paid gate, estimate whether your retry costs justify it. The [zero-dependency ROI calculator](examples/no_progress_gate_roi.py) runs locally with Python 3 and makes no network calls:
+
+```sh
+python examples/no_progress_gate_roi.py --retry-cost 0.014 --avoid-probability 0.35 --evaluations 10000
+```
+
+The inputs are buyer assumptions, **not verified savings**. The tool accounts for gate fees, optional overhead and false-stop losses. If a local check is equally effective and cheaper, use the local check instead.
+
 ## Economic rule: buy the cheaper decision
 
 Agent402 gates are designed to prevent a more expensive model/tool/retry action. Compare the gate price with the expected cost of the work it can avoid, not with zero. For example, `no-progress-gate` costs $0.003; under current public token prices, avoiding one representative 1k-input/500-output GPT-5.6 Sol call (~$0.014) is about 4.7x the gate price before tool fees or latency. Cheap-model workloads need more avoided calls to break even. See [`docs/economics.md`](docs/economics.md) for explicit break-even examples and the measurement rule. Do not infer energy savings from tokens unless the runtime provides a defensible energy model.
